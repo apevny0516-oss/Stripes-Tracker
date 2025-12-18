@@ -1120,6 +1120,315 @@ body {
   color: var(--text-primary);
 }
 
+/* Song Manager */
+.song-manager {
+  animation: fadeIn 0.3s ease;
+}
+
+.add-song-form {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.artist-input {
+  flex: 1;
+  min-width: 150px;
+  padding: 0.875rem 1.25rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 1rem;
+}
+
+.title-input {
+  flex: 2;
+  min-width: 200px;
+  padding: 0.875rem 1.25rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 1rem;
+}
+
+.artist-input:focus,
+.title-input:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+}
+
+.song-add-btn {
+  background: #667eea !important;
+}
+
+.songs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.song-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  transition: all 0.2s ease;
+}
+
+.song-item:hover {
+  border-color: #667eea;
+}
+
+.song-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.song-icon {
+  font-size: 1.25rem;
+}
+
+.song-details {
+  display: flex;
+  flex-direction: column;
+}
+
+.song-artist {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.song-title {
+  font-weight: 500;
+}
+
+.song-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.song-edit-form {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  width: 100%;
+}
+
+.edit-artist-input,
+.edit-title-input {
+  padding: 0.5rem 0.75rem;
+  background: var(--bg-elevated);
+  border: 1px solid #667eea;
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.9rem;
+}
+
+.edit-artist-input {
+  flex: 1;
+  min-width: 100px;
+}
+
+.edit-title-input {
+  flex: 2;
+  min-width: 150px;
+}
+
+.song-count {
+  margin-top: 1.5rem;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+
+/* Song Linking in Checklist Manager */
+.action-btn.link-song {
+  font-size: 0.875rem;
+}
+
+.action-btn.link-song.small {
+  opacity: 0.6;
+}
+
+.sub-item:hover .action-btn.link-song.small {
+  opacity: 1;
+}
+
+.linked-songs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.5rem 1.25rem 0.75rem 3.5rem;
+}
+
+.linked-song-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.5rem;
+  background: rgba(102, 126, 234, 0.15);
+  border: 1px solid rgba(102, 126, 234, 0.3);
+  border-radius: 50px;
+  font-size: 0.75rem;
+  color: #a5b4fc;
+}
+
+.song-tag-icon {
+  font-size: 0.7rem;
+}
+
+.song-tag-text {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.unlink-song-btn {
+  background: none;
+  border: none;
+  color: #a5b4fc;
+  font-size: 0.875rem;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  opacity: 0.6;
+  transition: opacity 0.2s;
+}
+
+.unlink-song-btn:hover {
+  opacity: 1;
+  color: var(--danger);
+}
+
+.song-link-dropdown {
+  padding: 0.75rem 1.25rem;
+  background: var(--bg-elevated);
+  border-top: 1px solid var(--border-color);
+}
+
+.song-search-input {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.875rem;
+  margin-bottom: 0.5rem;
+}
+
+.song-search-input:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.song-dropdown-list {
+  max-height: 200px;
+  overflow-y: auto;
+  margin-bottom: 0.5rem;
+}
+
+.song-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.875rem;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.song-dropdown-item:hover {
+  background: var(--bg-hover);
+}
+
+.song-dropdown-icon {
+  font-size: 0.8rem;
+}
+
+.song-dropdown-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.no-songs-msg {
+  padding: 1rem;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+
+.close-dropdown-btn {
+  padding: 0.375rem 0.75rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.close-dropdown-btn:hover {
+  background: var(--bg-hover);
+}
+
+.sub-item-container {
+  display: flex;
+  flex-direction: column;
+}
+
+.sub-item-container .linked-songs {
+  padding-left: 4rem;
+}
+
+.sub-item-container .song-link-dropdown {
+  margin-left: 1rem;
+}
+
+/* Songs in Progress View */
+.item-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.progress-linked-songs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  margin-top: 0.375rem;
+}
+
+.progress-song-tag {
+  font-size: 0.7rem;
+  color: #a5b4fc;
+  background: rgba(102, 126, 234, 0.1);
+  padding: 0.125rem 0.5rem;
+  border-radius: 50px;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .app-header {
@@ -1176,5 +1485,14 @@ body {
 
   .sort-select {
     flex: 1;
+  }
+
+  .add-song-form {
+    flex-direction: column;
+  }
+
+  .artist-input,
+  .title-input {
+    width: 100%;
   }
 }

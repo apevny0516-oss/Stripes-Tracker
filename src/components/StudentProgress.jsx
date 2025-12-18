@@ -1,6 +1,7 @@
 function StudentProgress({
   student,
   checklists,
+  songs,
   activeStripe,
   onToggleProgress,
   onGraduate,
@@ -14,6 +15,26 @@ function StudentProgress({
   const currentStripeIndex = stripeOrder.indexOf(student.currentStripe)
   const activeStripeIndex = stripeOrder.indexOf(activeStripe)
   const canGraduate = completion === 100 && activeStripe === student.currentStripe && currentStripeIndex < stripeOrder.length - 1
+
+  const getSongById = (songId) => songs?.find(s => s.id === songId)
+
+  const renderLinkedSongs = (linkedSongIds) => {
+    if (!linkedSongIds || linkedSongIds.length === 0) return null
+    
+    return (
+      <div className="progress-linked-songs">
+        {linkedSongIds.map(songId => {
+          const song = getSongById(songId)
+          if (!song) return null
+          return (
+            <span key={songId} className="progress-song-tag">
+              🎵 {song.artist ? `${song.artist} - ` : ''}{song.title}
+            </span>
+          )
+        })}
+      </div>
+    )
+  }
 
   return (
     <div className="student-progress-container">
@@ -95,7 +116,10 @@ function StudentProgress({
                   >
                     {isChecked && <span className="checkmark">✓</span>}
                   </div>
-                  <span className="item-text">{item.text}</span>
+                  <div className="item-content">
+                    <span className="item-text">{item.text}</span>
+                    {renderLinkedSongs(item.linkedSongs)}
+                  </div>
                 </div>
                 
                 {hasSubItems && (
@@ -117,7 +141,10 @@ function StudentProgress({
                           >
                             {subChecked && <span className="checkmark">✓</span>}
                           </div>
-                          <span className="item-text">{subItem.text}</span>
+                          <div className="item-content">
+                            <span className="item-text">{subItem.text}</span>
+                            {renderLinkedSongs(subItem.linkedSongs)}
+                          </div>
                         </div>
                       )
                     })}
@@ -159,5 +186,3 @@ function StudentProgress({
 }
 
 export default StudentProgress
-
-

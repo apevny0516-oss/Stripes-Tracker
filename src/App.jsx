@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 import { onAuthStateChanged, signOut } from 'firebase/auth'
-import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore'
+import { doc, setDoc, onSnapshot } from 'firebase/firestore'
 import { auth, db } from './firebase'
 import LoginScreen from './components/LoginScreen'
 import StudentList from './components/StudentList'
 import StudentProgress from './components/StudentProgress'
 import ChecklistManager from './components/ChecklistManager'
+import SongManager from './components/SongManager'
 import './App.css'
 
 const STRIPE_ORDER = ['white', 'yellow', 'red', 'green', 'blue', 'purple']
@@ -60,6 +61,7 @@ function App() {
   const [loading, setLoading] = useState(true)
   const [students, setStudents] = useState([])
   const [checklists, setChecklists] = useState(createEmptyChecklists())
+  const [songs, setSongs] = useState([])
   const [selectedStudent, setSelectedStudent] = useState(null)
   const [view, setView] = useState('students')
   const [activeStripe, setActiveStripe] = useState('white')
@@ -85,6 +87,7 @@ function App() {
         const data = docSnap.data()
         if (data.students) setStudents(data.students)
         if (data.checklists) setChecklists(data.checklists)
+        if (data.songs) setSongs(data.songs)
         if (data.studentSortBy) setStudentSortBy(data.studentSortBy)
       }
     })
@@ -102,6 +105,7 @@ function App() {
         await setDoc(userDocRef, {
           students,
           checklists,
+          songs,
           studentSortBy,
           lastUpdated: new Date().toISOString()
         }, { merge: true })
@@ -111,7 +115,7 @@ function App() {
     }, 1000)
 
     return () => clearTimeout(saveTimeout)
-  }, [students, checklists, studentSortBy, user, loading])
+  }, [students, checklists, songs, studentSortBy, user, loading])
 
   // Handle logout
   const handleLogout = async () => {
@@ -119,6 +123,7 @@ function App() {
       await signOut(auth)
       setStudents([])
       setChecklists(createEmptyChecklists())
+      setSongs([])
       setSelectedStudent(null)
       setView('students')
     } catch (error) {
@@ -126,7 +131,8 @@ function App() {
     }
   }
 
-  // Add a new student
+  // ========== STUDENT FUNCTIONS ==========
+  
   const addStudent = (name) => {
     const newStudent = {
       id: uuidv4(),
@@ -138,7 +144,6 @@ function App() {
     setStudents([...students, newStudent])
   }
 
-  // Delete a student
   const deleteStudent = (studentId) => {
     setStudents(students.filter(s => s.id !== studentId))
     if (selectedStudent?.id === studentId) {
@@ -147,19 +152,107 @@ function App() {
     }
   }
 
-  // Edit a student's name
   const editStudentName = (studentId, newName) => {
     setStudents(students.map(s => 
       s.id === studentId ? { ...s, name: newName } : s
     ))
   }
 
-  // Add a checklist item (adds to all students too)
+  // ========== SONG FUNCTIONS ==========
+
+  const addSong = (artist, title) => {
+    const newSong = {
+      id: uuidv4(),
+      artist,
+      title,
+      dateAdded: new Date().toISOString()
+    }
+    setSongs([...songs, newSong])
+  }
+
+  const editSong = (songId, artist, title) => {
+    setSongs(songs.map(s => 
+      s.id === songId ? { ...s, artist, title } : s
+    ))
+  }
+
+  const deleteSong = (songId) => {
+    setSongs(songs.filter(s => s.id !== songId))
+    // Also remove this song from any checklist items it's linked to
+    setChecklists(prev => {
+      const updated = { ...prev }
+      STRIPE_ORDER.forEach(stripe => {
+        updated[stripe] = updated[stripe].map(item => ({
+          ...item,
+          linkedSongs: (item.linkedSongs || []).filter(id => id !== songId),
+          subItems: item.subItems.map(sub => ({
+            ...sub,
+            linkedSongs: (sub.linkedSongs || []).filter(id => id !== songId)
+          }))
+        }))
+      })
+      return updated
+    })
+  }
+
+  // Link a song to a checklist item or subitem
+  const linkSong = (stripe, itemId, subItemId, songId) => {
+    setChecklists(prev => ({
+      ...prev,
+      [stripe]: prev[stripe].map(item => {
+        if (item.id !== itemId) return item
+        
+        if (subItemId) {
+          // Link to subitem
+          return {
+            ...item,
+            subItems: item.subItems.map(sub => {
+              if (sub.id !== subItemId) return sub
+              const linkedSongs = sub.linkedSongs || []
+              if (linkedSongs.includes(songId)) return sub
+              return { ...sub, linkedSongs: [...linkedSongs, songId] }
+            })
+          }
+        } else {
+          // Link to main item
+          const linkedSongs = item.linkedSongs || []
+          if (linkedSongs.includes(songId)) return item
+          return { ...item, linkedSongs: [...linkedSongs, songId] }
+        }
+      })
+    }))
+  }
+
+  // Unlink a song from a checklist item or subitem
+  const unlinkSong = (stripe, itemId, subItemId, songId) => {
+    setChecklists(prev => ({
+      ...prev,
+      [stripe]: prev[stripe].map(item => {
+        if (item.id !== itemId) return item
+        
+        if (subItemId) {
+          return {
+            ...item,
+            subItems: item.subItems.map(sub => {
+              if (sub.id !== subItemId) return sub
+              return { ...sub, linkedSongs: (sub.linkedSongs || []).filter(id => id !== songId) }
+            })
+          }
+        } else {
+          return { ...item, linkedSongs: (item.linkedSongs || []).filter(id => id !== songId) }
+        }
+      })
+    }))
+  }
+
+  // ========== CHECKLIST FUNCTIONS ==========
+
   const addChecklistItem = (stripe, itemText) => {
     const newItem = {
       id: uuidv4(),
       text: itemText,
-      subItems: []
+      subItems: [],
+      linkedSongs: []
     }
     
     setChecklists(prev => ({
@@ -179,11 +272,11 @@ function App() {
     })))
   }
 
-  // Add a sub-item to a checklist item
   const addSubItem = (stripe, itemId, subItemText) => {
     const newSubItem = {
       id: uuidv4(),
-      text: subItemText
+      text: subItemText,
+      linkedSongs: []
     }
 
     setChecklists(prev => ({
@@ -207,7 +300,6 @@ function App() {
     })))
   }
 
-  // Delete a checklist item
   const deleteChecklistItem = (stripe, itemId) => {
     const item = checklists[stripe].find(i => i.id === itemId)
     const subItemIds = item?.subItems?.map(s => s.id) || []
@@ -231,7 +323,6 @@ function App() {
     }))
   }
 
-  // Delete a sub-item
   const deleteSubItem = (stripe, itemId, subItemId) => {
     setChecklists(prev => ({
       ...prev,
@@ -255,7 +346,6 @@ function App() {
     }))
   }
 
-  // Reorder checklist items
   const reorderItems = (stripe, fromIndex, toIndex) => {
     setChecklists(prev => {
       const items = [...prev[stripe]]
@@ -268,7 +358,6 @@ function App() {
     })
   }
 
-  // Reorder sub-items within an item
   const reorderSubItems = (stripe, itemId, fromIndex, toIndex) => {
     setChecklists(prev => ({
       ...prev,
@@ -282,7 +371,8 @@ function App() {
     }))
   }
 
-  // Toggle student's progress on an item
+  // ========== PROGRESS FUNCTIONS ==========
+
   const toggleProgress = (studentId, stripe, itemId) => {
     setStudents(prev => prev.map(student => {
       if (student.id !== studentId) return student
@@ -299,7 +389,6 @@ function App() {
     }))
   }
 
-  // Graduate student to next stripe
   const graduateStudent = (studentId) => {
     setStudents(prev => prev.map(student => {
       if (student.id !== studentId) return student
@@ -314,7 +403,6 @@ function App() {
     }))
   }
 
-  // Calculate completion percentage for a stripe
   const calculateCompletion = (student, stripe) => {
     const items = checklists[stripe]
     if (!items || items.length === 0) return 0
@@ -381,6 +469,12 @@ function App() {
           >
             Manage Checklists
           </button>
+          <button 
+            className={`nav-tab ${view === 'songs' ? 'active' : ''}`}
+            onClick={() => setView('songs')}
+          >
+            🎵 Songs
+          </button>
         </nav>
         <div className="user-section">
           <img 
@@ -395,21 +489,23 @@ function App() {
         </div>
       </header>
 
-      <div className="stripe-tabs">
-        {STRIPE_ORDER.map(stripe => (
-          <button
-            key={stripe}
-            className={`stripe-tab ${activeStripe === stripe ? 'active' : ''}`}
-            style={{
-              '--stripe-color': STRIPE_COLORS[stripe],
-              '--stripe-text': STRIPE_TEXT_COLORS[stripe]
-            }}
-            onClick={() => setActiveStripe(stripe)}
-          >
-            {stripe.charAt(0).toUpperCase() + stripe.slice(1)}
-          </button>
-        ))}
-      </div>
+      {view !== 'songs' && (
+        <div className="stripe-tabs">
+          {STRIPE_ORDER.map(stripe => (
+            <button
+              key={stripe}
+              className={`stripe-tab ${activeStripe === stripe ? 'active' : ''}`}
+              style={{
+                '--stripe-color': STRIPE_COLORS[stripe],
+                '--stripe-text': STRIPE_TEXT_COLORS[stripe]
+              }}
+              onClick={() => setActiveStripe(stripe)}
+            >
+              {stripe.charAt(0).toUpperCase() + stripe.slice(1)}
+            </button>
+          ))}
+        </div>
+      )}
 
       <main className="main-content">
         {view === 'students' && (
@@ -433,6 +529,7 @@ function App() {
           <StudentProgress
             student={students.find(s => s.id === selectedStudent.id) || selectedStudent}
             checklists={checklists}
+            songs={songs}
             activeStripe={activeStripe}
             onToggleProgress={toggleProgress}
             onGraduate={graduateStudent}
@@ -453,7 +550,19 @@ function App() {
             onDeleteSubItem={deleteSubItem}
             onReorderItems={reorderItems}
             onReorderSubItems={reorderSubItems}
+            onLinkSong={linkSong}
+            onUnlinkSong={unlinkSong}
+            songs={songs}
             stripeColors={STRIPE_COLORS}
+          />
+        )}
+
+        {view === 'songs' && (
+          <SongManager
+            songs={songs}
+            onAddSong={addSong}
+            onEditSong={editSong}
+            onDeleteSong={deleteSong}
           />
         )}
       </main>

@@ -9,6 +9,9 @@ function ChecklistManager({
   onDeleteSubItem,
   onReorderItems,
   onReorderSubItems,
+  onLinkSong,
+  onUnlinkSong,
+  songs,
   stripeColors
 }) {
   const [newItemText, setNewItemText] = useState('')
@@ -18,6 +21,8 @@ function ChecklistManager({
   const [draggedSubItem, setDraggedSubItem] = useState(null)
   const [dragOverIndex, setDragOverIndex] = useState(null)
   const [dragOverSubIndex, setDragOverSubIndex] = useState(null)
+  const [linkingSongTo, setLinkingSongTo] = useState(null) // { itemId, subItemId? }
+  const [songSearchTerm, setSongSearchTerm] = useState('')
 
   const items = checklists[activeStripe] || []
 
@@ -36,6 +41,37 @@ function ChecklistManager({
       setAddingSubItemTo(null)
     }
   }
+
+  // Get linked songs for an item or subitem
+  const getLinkedSongs = (itemId, subItemId = null) => {
+    const item = items.find(i => i.id === itemId)
+    if (!item) return []
+    
+    if (subItemId) {
+      const subItem = item.subItems?.find(s => s.id === subItemId)
+      return subItem?.linkedSongs || []
+    }
+    return item.linkedSongs || []
+  }
+
+  const getSongById = (songId) => songs.find(s => s.id === songId)
+
+  const handleLinkSong = (songId) => {
+    if (linkingSongTo) {
+      onLinkSong(activeStripe, linkingSongTo.itemId, linkingSongTo.subItemId, songId)
+      setLinkingSongTo(null)
+      setSongSearchTerm('')
+    }
+  }
+
+  const handleUnlinkSong = (itemId, subItemId, songId) => {
+    onUnlinkSong(activeStripe, itemId, subItemId, songId)
+  }
+
+  const filteredSongs = songs.filter(song =>
+    song.title.toLowerCase().includes(songSearchTerm.toLowerCase()) ||
+    song.artist.toLowerCase().includes(songSearchTerm.toLowerCase())
+  )
 
   // Drag handlers for main items
   const handleDragStart = (e, index) => {
@@ -101,6 +137,88 @@ function ChecklistManager({
     setDragOverSubIndex(null)
   }
 
+  const renderLinkedSongs = (itemId, subItemId = null) => {
+    const linkedSongIds = getLinkedSongs(itemId, subItemId)
+    if (linkedSongIds.length === 0) return null
+
+    return (
+      <div className="linked-songs">
+        {linkedSongIds.map(songId => {
+          const song = getSongById(songId)
+          if (!song) return null
+          return (
+            <div key={songId} className="linked-song-tag">
+              <span className="song-tag-icon">🎵</span>
+              <span className="song-tag-text">
+                {song.artist ? `${song.artist} - ` : ''}{song.title}
+              </span>
+              <button
+                className="unlink-song-btn"
+                onClick={() => handleUnlinkSong(itemId, subItemId, songId)}
+                title="Remove song"
+              >
+                ×
+              </button>
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
+
+  const renderSongLinkDropdown = (itemId, subItemId = null) => {
+    const isActive = linkingSongTo?.itemId === itemId && linkingSongTo?.subItemId === subItemId
+    
+    if (!isActive) return null
+
+    const linkedSongIds = getLinkedSongs(itemId, subItemId)
+    const availableSongs = filteredSongs.filter(s => !linkedSongIds.includes(s.id))
+
+    return (
+      <div className="song-link-dropdown">
+        <input
+          type="text"
+          value={songSearchTerm}
+          onChange={(e) => setSongSearchTerm(e.target.value)}
+          placeholder="Search songs..."
+          className="song-search-input"
+          autoFocus
+        />
+        <div className="song-dropdown-list">
+          {availableSongs.length === 0 ? (
+            <div className="no-songs-msg">
+              {songs.length === 0 
+                ? 'No songs in database. Add songs in Song Database first.'
+                : 'No matching songs available'}
+            </div>
+          ) : (
+            availableSongs.map(song => (
+              <button
+                key={song.id}
+                className="song-dropdown-item"
+                onClick={() => handleLinkSong(song.id)}
+              >
+                <span className="song-dropdown-icon">🎵</span>
+                <span className="song-dropdown-text">
+                  {song.artist ? `${song.artist} - ` : ''}{song.title}
+                </span>
+              </button>
+            ))
+          )}
+        </div>
+        <button
+          className="close-dropdown-btn"
+          onClick={() => {
+            setLinkingSongTo(null)
+            setSongSearchTerm('')
+          }}
+        >
+          Cancel
+        </button>
+      </div>
+    )
+  }
+
   return (
     <div className="checklist-manager">
       <div className="manager-header">
@@ -110,7 +228,7 @@ function ChecklistManager({
           </span> Stripe Checklist
         </h2>
         <p className="manager-hint">
-          Items added here will appear in all students' checklists • Drag items to reorder
+          Items added here will appear in all students' checklists • Drag items to reorder • Link songs with 🎵
         </p>
       </div>
 
@@ -157,6 +275,20 @@ function ChecklistManager({
                 <span className="item-text">{item.text}</span>
                 <div className="item-actions">
                   <button
+                    className="action-btn link-song"
+                    onClick={() => {
+                      if (linkingSongTo?.itemId === item.id && !linkingSongTo?.subItemId) {
+                        setLinkingSongTo(null)
+                      } else {
+                        setLinkingSongTo({ itemId: item.id, subItemId: null })
+                        setSongSearchTerm('')
+                      }
+                    }}
+                    title="Link song"
+                  >
+                    🎵
+                  </button>
+                  <button
                     className="action-btn add-sub"
                     onClick={() => {
                       setAddingSubItemTo(addingSubItemTo === item.id ? null : item.id)
@@ -180,32 +312,55 @@ function ChecklistManager({
                 </div>
               </div>
 
+              {renderLinkedSongs(item.id)}
+              {renderSongLinkDropdown(item.id)}
+
               {item.subItems && item.subItems.length > 0 && (
                 <div className="sub-items-list">
                   {item.subItems.map((subItem, subIndex) => (
                     <div 
                       key={subItem.id} 
-                      className={`sub-item ${dragOverSubIndex === subIndex && draggedSubItem?.itemId === item.id ? 'drag-over' : ''}`}
-                      draggable
-                      onDragStart={(e) => handleSubDragStart(e, item.id, subIndex)}
-                      onDragEnd={handleSubDragEnd}
-                      onDragOver={(e) => handleSubDragOver(e, item.id, subIndex)}
-                      onDrop={(e) => handleSubDrop(e, item.id, subIndex)}
+                      className={`sub-item-container ${dragOverSubIndex === subIndex && draggedSubItem?.itemId === item.id ? 'drag-over' : ''}`}
                     >
-                      <div className="sub-drag-handle" title="Drag to reorder">⋮</div>
-                      <span className="sub-bullet">•</span>
-                      <span className="sub-text">{subItem.text}</span>
-                      <button
-                        className="action-btn delete small"
-                        onClick={() => {
-                          if (confirm('Delete this sub-item?')) {
-                            onDeleteSubItem(activeStripe, item.id, subItem.id)
-                          }
-                        }}
-                        title="Delete sub-item"
+                      <div 
+                        className="sub-item"
+                        draggable
+                        onDragStart={(e) => handleSubDragStart(e, item.id, subIndex)}
+                        onDragEnd={handleSubDragEnd}
+                        onDragOver={(e) => handleSubDragOver(e, item.id, subIndex)}
+                        onDrop={(e) => handleSubDrop(e, item.id, subIndex)}
                       >
-                        ×
-                      </button>
+                        <div className="sub-drag-handle" title="Drag to reorder">⋮</div>
+                        <span className="sub-bullet">•</span>
+                        <span className="sub-text">{subItem.text}</span>
+                        <button
+                          className="action-btn link-song small"
+                          onClick={() => {
+                            if (linkingSongTo?.itemId === item.id && linkingSongTo?.subItemId === subItem.id) {
+                              setLinkingSongTo(null)
+                            } else {
+                              setLinkingSongTo({ itemId: item.id, subItemId: subItem.id })
+                              setSongSearchTerm('')
+                            }
+                          }}
+                          title="Link song"
+                        >
+                          🎵
+                        </button>
+                        <button
+                          className="action-btn delete small"
+                          onClick={() => {
+                            if (confirm('Delete this sub-item?')) {
+                              onDeleteSubItem(activeStripe, item.id, subItem.id)
+                            }
+                          }}
+                          title="Delete sub-item"
+                        >
+                          ×
+                        </button>
+                      </div>
+                      {renderLinkedSongs(item.id, subItem.id)}
+                      {renderSongLinkDropdown(item.id, subItem.id)}
                     </div>
                   ))}
                 </div>
