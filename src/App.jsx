@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 import { onAuthStateChanged, signOut } from 'firebase/auth'
-import { doc, setDoc, onSnapshot } from 'firebase/firestore'
+import { doc, setDoc, onSnapshot, getDoc } from 'firebase/firestore'
 import { auth, db } from './firebase'
 import LoginScreen from './components/LoginScreen'
 import StudentList from './components/StudentList'
@@ -59,7 +59,7 @@ const createStudentProgress = (checklists) => {
 function App() {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [dataLoaded, setDataLoaded] = useState(false) // Track if we've loaded from Firestore
+  const [dataLoaded, setDataLoaded] = useState(false)
   const [students, setStudents] = useState([])
   const [checklists, setChecklists] = useState(createEmptyChecklists())
   const [songs, setSongs] = useState([])
@@ -67,15 +67,21 @@ function App() {
   const [view, setView] = useState('students')
   const [activeStripe, setActiveStripe] = useState('white')
   const [studentSortBy, setStudentSortBy] = useState('name-asc')
+  
+  // Track timestamps to prevent sync conflicts
+  const remoteTimestamp = useRef(null)  // When remote data was last updated
+  const localChangeTime = useRef(null)  // When we last made a local change
+  const isSaving = useRef(false)        // Prevent save during save
 
   // Listen for auth state changes
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser)
       setLoading(false)
-      // Reset dataLoaded when user changes
       if (!currentUser) {
         setDataLoaded(false)
+        remoteTimestamp.current = null
+        localChangeTime.current = null
       }
     })
     return () => unsubscribe()
@@ -88,41 +94,86 @@ function App() {
     const userDocRef = doc(db, 'users', user.uid)
     
     const unsubscribe = onSnapshot(userDocRef, (docSnap) => {
+      // Don't update state if we're in the middle of saving
+      if (isSaving.current) return
+      
       if (docSnap.exists()) {
         const data = docSnap.data()
-        if (data.students) setStudents(data.students)
-        if (data.checklists) setChecklists(data.checklists)
-        if (data.songs) setSongs(data.songs)
-        if (data.studentSortBy) setStudentSortBy(data.studentSortBy)
+        const newTimestamp = data.lastUpdated || null
+        
+        // Only update if remote data is newer than our last local change
+        // or if we haven't made any local changes
+        const shouldUpdate = !localChangeTime.current || 
+          !newTimestamp ||
+          new Date(newTimestamp) >= new Date(localChangeTime.current)
+        
+        if (shouldUpdate) {
+          if (data.students) setStudents(data.students)
+          if (data.checklists) setChecklists(data.checklists)
+          if (data.songs) setSongs(data.songs)
+          if (data.studentSortBy) setStudentSortBy(data.studentSortBy)
+          remoteTimestamp.current = newTimestamp
+          // Reset local change time since we accepted remote data
+          localChangeTime.current = null
+        }
       }
-      // Mark data as loaded after first snapshot (even if empty)
       setDataLoaded(true)
     })
 
     return () => unsubscribe()
   }, [user])
 
-  // Save data to Firestore (debounced) - only after initial data load
+  // Save data to Firestore (debounced) - with conflict detection
   useEffect(() => {
     if (!user || loading || !dataLoaded) return
+    // Only save if we have pending local changes
+    if (!localChangeTime.current) return
 
     const saveTimeout = setTimeout(async () => {
       try {
+        isSaving.current = true
         const userDocRef = doc(db, 'users', user.uid)
+        
+        // Check current remote timestamp before saving
+        const currentDoc = await getDoc(userDocRef)
+        const currentRemoteTimestamp = currentDoc.exists() ? currentDoc.data().lastUpdated : null
+        
+        // Only save if remote hasn't been updated by another device since we loaded
+        const remoteIsNewer = currentRemoteTimestamp && remoteTimestamp.current &&
+          new Date(currentRemoteTimestamp) > new Date(remoteTimestamp.current)
+        
+        if (remoteIsNewer) {
+          // Another device has newer data - don't overwrite, let onSnapshot handle it
+          console.log('Remote data is newer, skipping save')
+          localChangeTime.current = null
+          isSaving.current = false
+          return
+        }
+        
+        const now = new Date().toISOString()
         await setDoc(userDocRef, {
           students,
           checklists,
           songs,
           studentSortBy,
-          lastUpdated: new Date().toISOString()
+          lastUpdated: now
         }, { merge: true })
+        
+        remoteTimestamp.current = now
+        localChangeTime.current = null
       } catch (error) {
         console.error('Error saving data:', error)
       }
-    }, 1000)
+      isSaving.current = false
+    }, 1500) // Slightly longer debounce for multi-device safety
 
     return () => clearTimeout(saveTimeout)
   }, [students, checklists, songs, studentSortBy, user, loading, dataLoaded])
+
+  // Helper to mark that we made a local change
+  const markLocalChange = () => {
+    localChangeTime.current = new Date().toISOString()
+  }
 
   // Handle logout
   const handleLogout = async () => {
@@ -142,6 +193,7 @@ function App() {
   // ========== STUDENT FUNCTIONS ==========
   
   const addStudent = (name) => {
+    markLocalChange()
     const newStudent = {
       id: uuidv4(),
       name,
@@ -153,6 +205,7 @@ function App() {
   }
 
   const deleteStudent = (studentId) => {
+    markLocalChange()
     setStudents(students.filter(s => s.id !== studentId))
     if (selectedStudent?.id === studentId) {
       setSelectedStudent(null)
@@ -161,6 +214,7 @@ function App() {
   }
 
   const editStudentName = (studentId, newName) => {
+    markLocalChange()
     setStudents(students.map(s => 
       s.id === studentId ? { ...s, name: newName } : s
     ))
@@ -169,6 +223,7 @@ function App() {
   // ========== SONG FUNCTIONS ==========
 
   const addSong = (artist, title) => {
+    markLocalChange()
     const newSong = {
       id: uuidv4(),
       artist,
@@ -180,12 +235,14 @@ function App() {
   }
 
   const editSong = (songId, artist, title) => {
+    markLocalChange()
     setSongs(songs.map(s => 
       s.id === songId ? { ...s, artist, title } : s
     ))
   }
 
   const deleteSong = (songId) => {
+    markLocalChange()
     setSongs(songs.filter(s => s.id !== songId))
     // Also remove this song from any checklist items it's linked to
     setChecklists(prev => {
@@ -206,6 +263,7 @@ function App() {
 
   // Link a song to a checklist item or subitem
   const linkSong = (stripe, itemId, subItemId, songId) => {
+    markLocalChange()
     setChecklists(prev => ({
       ...prev,
       [stripe]: prev[stripe].map(item => {
@@ -234,6 +292,7 @@ function App() {
 
   // Unlink a song from a checklist item or subitem
   const unlinkSong = (stripe, itemId, subItemId, songId) => {
+    markLocalChange()
     setChecklists(prev => ({
       ...prev,
       [stripe]: prev[stripe].map(item => {
@@ -257,6 +316,7 @@ function App() {
   // ========== CHECKLIST FUNCTIONS ==========
 
   const addChecklistItem = (stripe, itemText) => {
+    markLocalChange()
     const newItem = {
       id: uuidv4(),
       text: itemText,
@@ -282,6 +342,7 @@ function App() {
   }
 
   const addSubItem = (stripe, itemId, subItemText) => {
+    markLocalChange()
     const newSubItem = {
       id: uuidv4(),
       text: subItemText,
@@ -310,6 +371,7 @@ function App() {
   }
 
   const deleteChecklistItem = (stripe, itemId) => {
+    markLocalChange()
     const item = checklists[stripe].find(i => i.id === itemId)
     const subItemIds = item?.subItems?.map(s => s.id) || []
 
@@ -333,6 +395,7 @@ function App() {
   }
 
   const deleteSubItem = (stripe, itemId, subItemId) => {
+    markLocalChange()
     setChecklists(prev => ({
       ...prev,
       [stripe]: prev[stripe].map(item =>
@@ -356,6 +419,7 @@ function App() {
   }
 
   const reorderItems = (stripe, fromIndex, toIndex) => {
+    markLocalChange()
     setChecklists(prev => {
       const items = [...prev[stripe]]
       const [removed] = items.splice(fromIndex, 1)
@@ -368,6 +432,7 @@ function App() {
   }
 
   const reorderSubItems = (stripe, itemId, fromIndex, toIndex) => {
+    markLocalChange()
     setChecklists(prev => ({
       ...prev,
       [stripe]: prev[stripe].map(item => {
@@ -383,6 +448,7 @@ function App() {
   // ========== PROGRESS FUNCTIONS ==========
 
   const toggleProgress = (studentId, stripe, itemId) => {
+    markLocalChange()
     setStudents(prev => prev.map(student => {
       if (student.id !== studentId) return student
       return {
@@ -399,6 +465,7 @@ function App() {
   }
 
   const graduateStudent = (studentId) => {
+    markLocalChange()
     setStudents(prev => prev.map(student => {
       if (student.id !== studentId) return student
       const currentIndex = STRIPE_ORDER.indexOf(student.currentStripe)
@@ -530,7 +597,7 @@ function App() {
             stripeTextColors={STRIPE_TEXT_COLORS}
             stripeOrder={STRIPE_ORDER}
             sortBy={studentSortBy}
-            onSortChange={setStudentSortBy}
+            onSortChange={(newSort) => { markLocalChange(); setStudentSortBy(newSort); }}
           />
         )}
 
