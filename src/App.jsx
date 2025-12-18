@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react'
 import { v4 as uuidv4 } from 'uuid'
-import PinScreen from './components/PinScreen'
+import { onAuthStateChanged, signOut } from 'firebase/auth'
+import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore'
+import { auth, db } from './firebase'
+import LoginScreen from './components/LoginScreen'
 import StudentList from './components/StudentList'
 import StudentProgress from './components/StudentProgress'
 import ChecklistManager from './components/ChecklistManager'
@@ -53,45 +56,78 @@ const createStudentProgress = (checklists) => {
 }
 
 function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    return sessionStorage.getItem('stripes-authenticated') === 'true'
-  })
+  const [user, setUser] = useState(null)
+  const [loading, setLoading] = useState(true)
   const [students, setStudents] = useState([])
   const [checklists, setChecklists] = useState(createEmptyChecklists())
   const [selectedStudent, setSelectedStudent] = useState(null)
-  const [view, setView] = useState('students') // 'students', 'progress', 'manage'
+  const [view, setView] = useState('students')
   const [activeStripe, setActiveStripe] = useState('white')
   const [studentSortBy, setStudentSortBy] = useState('name-asc')
+  const [saving, setSaving] = useState(false)
 
-  // Load data from localStorage
+  // Listen for auth state changes
   useEffect(() => {
-    const savedStudents = localStorage.getItem('stripes-students')
-    const savedChecklists = localStorage.getItem('stripes-checklists')
-    const savedSortBy = localStorage.getItem('stripes-student-sort')
-    
-    if (savedChecklists) {
-      setChecklists(JSON.parse(savedChecklists))
-    }
-    if (savedStudents) {
-      setStudents(JSON.parse(savedStudents))
-    }
-    if (savedSortBy) {
-      setStudentSortBy(savedSortBy)
-    }
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser)
+      setLoading(false)
+    })
+    return () => unsubscribe()
   }, [])
 
-  // Save data to localStorage
+  // Load data from Firestore when user logs in
   useEffect(() => {
-    localStorage.setItem('stripes-students', JSON.stringify(students))
-  }, [students])
+    if (!user) return
 
-  useEffect(() => {
-    localStorage.setItem('stripes-checklists', JSON.stringify(checklists))
-  }, [checklists])
+    const userDocRef = doc(db, 'users', user.uid)
+    
+    const unsubscribe = onSnapshot(userDocRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data()
+        if (data.students) setStudents(data.students)
+        if (data.checklists) setChecklists(data.checklists)
+        if (data.studentSortBy) setStudentSortBy(data.studentSortBy)
+      }
+    })
 
+    return () => unsubscribe()
+  }, [user])
+
+  // Save data to Firestore (debounced)
   useEffect(() => {
-    localStorage.setItem('stripes-student-sort', studentSortBy)
-  }, [studentSortBy])
+    if (!user || loading) return
+
+    const saveTimeout = setTimeout(async () => {
+      setSaving(true)
+      try {
+        const userDocRef = doc(db, 'users', user.uid)
+        await setDoc(userDocRef, {
+          students,
+          checklists,
+          studentSortBy,
+          lastUpdated: new Date().toISOString()
+        }, { merge: true })
+      } catch (error) {
+        console.error('Error saving data:', error)
+      }
+      setSaving(false)
+    }, 1000)
+
+    return () => clearTimeout(saveTimeout)
+  }, [students, checklists, studentSortBy, user, loading])
+
+  // Handle logout
+  const handleLogout = async () => {
+    try {
+      await signOut(auth)
+      setStudents([])
+      setChecklists(createEmptyChecklists())
+      setSelectedStudent(null)
+      setView('students')
+    } catch (error) {
+      console.error('Error signing out:', error)
+    }
+  }
 
   // Add a new student
   const addStudent = (name) => {
@@ -127,7 +163,6 @@ function App() {
       [stripe]: [...prev[stripe], newItem]
     }))
 
-    // Add this item to all students' progress
     setStudents(prev => prev.map(student => ({
       ...student,
       progress: {
@@ -156,7 +191,6 @@ function App() {
       )
     }))
 
-    // Add this sub-item to all students' progress
     setStudents(prev => prev.map(student => ({
       ...student,
       progress: {
@@ -179,7 +213,6 @@ function App() {
       [stripe]: prev[stripe].filter(i => i.id !== itemId)
     }))
 
-    // Remove from all students' progress
     setStudents(prev => prev.map(student => {
       const newProgress = { ...student.progress[stripe] }
       delete newProgress[itemId]
@@ -205,7 +238,6 @@ function App() {
       )
     }))
 
-    // Remove from all students' progress
     setStudents(prev => prev.map(student => {
       const newProgress = { ...student.progress[stripe] }
       delete newProgress[subItemId]
@@ -303,8 +335,19 @@ function App() {
     setView('progress')
   }
 
-  if (!isAuthenticated) {
-    return <PinScreen onUnlock={() => setIsAuthenticated(true)} />
+  // Show loading screen
+  if (loading) {
+    return (
+      <div className="loading-screen">
+        <div className="loading-spinner"></div>
+        <p>Loading...</p>
+      </div>
+    )
+  }
+
+  // Show login screen if not authenticated
+  if (!user) {
+    return <LoginScreen onLogin={setUser} />
   }
 
   return (
@@ -335,6 +378,18 @@ function App() {
             Manage Checklists
           </button>
         </nav>
+        <div className="user-section">
+          {saving && <span className="saving-indicator">Saving...</span>}
+          <img 
+            src={user.photoURL} 
+            alt={user.displayName} 
+            className="user-avatar"
+            title={user.displayName}
+          />
+          <button onClick={handleLogout} className="logout-btn">
+            Sign Out
+          </button>
+        </div>
       </header>
 
       <div className="stripe-tabs">
