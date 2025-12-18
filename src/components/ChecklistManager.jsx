@@ -11,6 +11,7 @@ function ChecklistManager({
   onReorderSubItems,
   onLinkSong,
   onUnlinkSong,
+  onAddSong,
   songs,
   stripeColors
 }) {
@@ -23,6 +24,8 @@ function ChecklistManager({
   const [dragOverSubIndex, setDragOverSubIndex] = useState(null)
   const [linkingSongTo, setLinkingSongTo] = useState(null) // { itemId, subItemId? }
   const [songSearchTerm, setSongSearchTerm] = useState('')
+  const [showCreateSong, setShowCreateSong] = useState(false)
+  const [newSongArtist, setNewSongArtist] = useState('')
 
   const items = checklists[activeStripe] || []
 
@@ -61,11 +64,29 @@ function ChecklistManager({
       onLinkSong(activeStripe, linkingSongTo.itemId, linkingSongTo.subItemId, songId)
       setLinkingSongTo(null)
       setSongSearchTerm('')
+      setShowCreateSong(false)
+      setNewSongArtist('')
     }
   }
 
   const handleUnlinkSong = (itemId, subItemId, songId) => {
     onUnlinkSong(activeStripe, itemId, subItemId, songId)
+  }
+
+  const handleCreateAndLinkSong = () => {
+    if (songSearchTerm.trim() && linkingSongTo) {
+      // Create the song and get its ID
+      const newSongId = onAddSong(newSongArtist.trim(), songSearchTerm.trim())
+      // Link it immediately
+      if (newSongId) {
+        onLinkSong(activeStripe, linkingSongTo.itemId, linkingSongTo.subItemId, newSongId)
+      }
+      // Reset state
+      setLinkingSongTo(null)
+      setSongSearchTerm('')
+      setShowCreateSong(false)
+      setNewSongArtist('')
+    }
   }
 
   const filteredSongs = songs.filter(song =>
@@ -173,44 +194,97 @@ function ChecklistManager({
 
     const linkedSongIds = getLinkedSongs(itemId, subItemId)
     const availableSongs = filteredSongs.filter(s => !linkedSongIds.includes(s.id))
+    const hasSearchTerm = songSearchTerm.trim().length > 0
+    const noResults = availableSongs.length === 0 && hasSearchTerm
 
     return (
       <div className="song-link-dropdown">
         <input
           type="text"
           value={songSearchTerm}
-          onChange={(e) => setSongSearchTerm(e.target.value)}
-          placeholder="Search songs..."
+          onChange={(e) => {
+            setSongSearchTerm(e.target.value)
+            setShowCreateSong(false)
+          }}
+          placeholder="Search songs or type to create new..."
           className="song-search-input"
           autoFocus
         />
-        <div className="song-dropdown-list">
-          {availableSongs.length === 0 ? (
-            <div className="no-songs-msg">
-              {songs.length === 0 
-                ? 'No songs in database. Add songs in Song Database first.'
-                : 'No matching songs available'}
+        
+        {showCreateSong ? (
+          <div className="create-song-form">
+            <p className="create-song-title">Create new song:</p>
+            <input
+              type="text"
+              value={newSongArtist}
+              onChange={(e) => setNewSongArtist(e.target.value)}
+              placeholder="Artist (optional)"
+              className="create-song-artist-input"
+            />
+            <div className="create-song-preview">
+              <span className="song-dropdown-icon">🎵</span>
+              <span>{newSongArtist ? `${newSongArtist} - ` : ''}{songSearchTerm}</span>
             </div>
-          ) : (
-            availableSongs.map(song => (
+            <div className="create-song-actions">
               <button
-                key={song.id}
-                className="song-dropdown-item"
-                onClick={() => handleLinkSong(song.id)}
+                className="create-song-btn"
+                onClick={handleCreateAndLinkSong}
               >
-                <span className="song-dropdown-icon">🎵</span>
-                <span className="song-dropdown-text">
-                  {song.artist ? `${song.artist} - ` : ''}{song.title}
-                </span>
+                Create & Link
               </button>
-            ))
-          )}
-        </div>
+              <button
+                className="cancel-create-btn"
+                onClick={() => setShowCreateSong(false)}
+              >
+                Back
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className="song-dropdown-list">
+              {availableSongs.length === 0 ? (
+                <div className="no-songs-msg">
+                  {songs.length === 0 && !hasSearchTerm
+                    ? 'No songs in database yet.'
+                    : hasSearchTerm
+                    ? `No songs matching "${songSearchTerm}"`
+                    : 'All songs are already linked'}
+                </div>
+              ) : (
+                availableSongs.map(song => (
+                  <button
+                    key={song.id}
+                    className="song-dropdown-item"
+                    onClick={() => handleLinkSong(song.id)}
+                  >
+                    <span className="song-dropdown-icon">🎵</span>
+                    <span className="song-dropdown-text">
+                      {song.artist ? `${song.artist} - ` : ''}{song.title}
+                    </span>
+                  </button>
+                ))
+              )}
+            </div>
+            
+            {hasSearchTerm && (
+              <button
+                className="create-new-song-btn"
+                onClick={() => setShowCreateSong(true)}
+              >
+                <span>+</span> Create "{songSearchTerm}" as new song
+              </button>
+            )}
+          </>
+        )}
+        
         <button
           className="close-dropdown-btn"
           onClick={() => {
             setLinkingSongTo(null)
             setSongSearchTerm('')
+            setShowCreateSong(false)
+            setNewSongArtist('')
           }}
         >
           Cancel
@@ -282,6 +356,8 @@ function ChecklistManager({
                       } else {
                         setLinkingSongTo({ itemId: item.id, subItemId: null })
                         setSongSearchTerm('')
+                        setShowCreateSong(false)
+                        setNewSongArtist('')
                       }
                     }}
                     title="Link song"
@@ -341,6 +417,8 @@ function ChecklistManager({
                             } else {
                               setLinkingSongTo({ itemId: item.id, subItemId: subItem.id })
                               setSongSearchTerm('')
+                              setShowCreateSong(false)
+                              setNewSongArtist('')
                             }
                           }}
                           title="Link song"

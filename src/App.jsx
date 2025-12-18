@@ -168,6 +168,7 @@ function App() {
       dateAdded: new Date().toISOString()
     }
     setSongs([...songs, newSong])
+    return newSong.id // Return the ID so we can link immediately
   }
 
   const editSong = (songId, artist, title) => {
@@ -552,6 +553,7 @@ function App() {
             onReorderSubItems={reorderSubItems}
             onLinkSong={linkSong}
             onUnlinkSong={unlinkSong}
+            onAddSong={addSong}
             songs={songs}
             stripeColors={STRIPE_COLORS}
           />
