@@ -64,7 +64,6 @@ function App() {
   const [view, setView] = useState('students')
   const [activeStripe, setActiveStripe] = useState('white')
   const [studentSortBy, setStudentSortBy] = useState('name-asc')
-  const [saving, setSaving] = useState(false)
 
   // Listen for auth state changes
   useEffect(() => {
@@ -98,7 +97,6 @@ function App() {
     if (!user || loading) return
 
     const saveTimeout = setTimeout(async () => {
-      setSaving(true)
       try {
         const userDocRef = doc(db, 'users', user.uid)
         await setDoc(userDocRef, {
@@ -110,7 +108,6 @@ function App() {
       } catch (error) {
         console.error('Error saving data:', error)
       }
-      setSaving(false)
     }, 1000)
 
     return () => clearTimeout(saveTimeout)
@@ -148,6 +145,13 @@ function App() {
       setSelectedStudent(null)
       setView('students')
     }
+  }
+
+  // Edit a student's name
+  const editStudentName = (studentId, newName) => {
+    setStudents(students.map(s => 
+      s.id === studentId ? { ...s, name: newName } : s
+    ))
   }
 
   // Add a checklist item (adds to all students too)
@@ -379,7 +383,6 @@ function App() {
           </button>
         </nav>
         <div className="user-section">
-          {saving && <span className="saving-indicator">Saving...</span>}
           <img 
             src={user.photoURL} 
             alt={user.displayName} 
@@ -414,6 +417,7 @@ function App() {
             students={students}
             onAddStudent={addStudent}
             onDeleteStudent={deleteStudent}
+            onEditStudentName={editStudentName}
             onSelectStudent={selectStudent}
             calculateCompletion={calculateCompletion}
             activeStripe={activeStripe}

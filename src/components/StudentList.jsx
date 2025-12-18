@@ -4,6 +4,7 @@ function StudentList({
   students, 
   onAddStudent, 
   onDeleteStudent, 
+  onEditStudentName,
   onSelectStudent,
   calculateCompletion,
   activeStripe,
@@ -15,12 +16,43 @@ function StudentList({
 }) {
   const [newStudentName, setNewStudentName] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
+  const [editingId, setEditingId] = useState(null)
+  const [editingName, setEditingName] = useState('')
 
   const handleSubmit = (e) => {
     e.preventDefault()
     if (newStudentName.trim()) {
       onAddStudent(newStudentName.trim())
       setNewStudentName('')
+    }
+  }
+
+  const startEditing = (e, student) => {
+    e.stopPropagation()
+    setEditingId(student.id)
+    setEditingName(student.name)
+  }
+
+  const saveEdit = (e) => {
+    e.stopPropagation()
+    if (editingName.trim()) {
+      onEditStudentName(editingId, editingName.trim())
+    }
+    setEditingId(null)
+    setEditingName('')
+  }
+
+  const cancelEdit = (e) => {
+    e.stopPropagation()
+    setEditingId(null)
+    setEditingName('')
+  }
+
+  const handleEditKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      saveEdit(e)
+    } else if (e.key === 'Escape') {
+      cancelEdit(e)
     }
   }
 
@@ -38,23 +70,19 @@ function StudentList({
         case 'name-desc':
           return b.name.localeCompare(a.name)
         case 'stripe-desc': {
-          // Highest stripe first, then by completion percentage within same stripe
           const aStripeIdx = getStripeIndex(a.currentStripe)
           const bStripeIdx = getStripeIndex(b.currentStripe)
           if (aStripeIdx !== bStripeIdx) {
             return bStripeIdx - aStripeIdx
           }
-          // Same stripe, sort by completion
           return calculateCompletion(b, b.currentStripe) - calculateCompletion(a, a.currentStripe)
         }
         case 'stripe-asc': {
-          // Lowest stripe first, then by completion percentage within same stripe
           const aStripeIdx = getStripeIndex(a.currentStripe)
           const bStripeIdx = getStripeIndex(b.currentStripe)
           if (aStripeIdx !== bStripeIdx) {
             return aStripeIdx - bStripeIdx
           }
-          // Same stripe, sort by completion (lowest first)
           return calculateCompletion(a, a.currentStripe) - calculateCompletion(b, b.currentStripe)
         }
         default:
@@ -118,11 +146,13 @@ function StudentList({
         ) : (
           sortedAndFilteredStudents.map(student => {
             const completion = calculateCompletion(student, student.currentStripe)
+            const isEditing = editingId === student.id
+            
             return (
               <div 
                 key={student.id} 
                 className="student-card"
-                onClick={() => onSelectStudent(student)}
+                onClick={() => !isEditing && onSelectStudent(student)}
               >
                 <div className="student-card-header">
                   <div 
@@ -134,21 +164,49 @@ function StudentList({
                   >
                     {student.currentStripe}
                   </div>
-                  <button
-                    className="delete-btn"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      if (confirm(`Delete ${student.name}?`)) {
-                        onDeleteStudent(student.id)
-                      }
-                    }}
-                    title="Delete student"
-                  >
-                    ×
-                  </button>
+                  <div className="card-actions">
+                    {!isEditing && (
+                      <button
+                        className="edit-btn"
+                        onClick={(e) => startEditing(e, student)}
+                        title="Edit name"
+                      >
+                        ✎
+                      </button>
+                    )}
+                    <button
+                      className="delete-btn"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        if (confirm(`Delete ${student.name}?`)) {
+                          onDeleteStudent(student.id)
+                        }
+                      }}
+                      title="Delete student"
+                    >
+                      ×
+                    </button>
+                  </div>
                 </div>
                 
-                <h3 className="student-name">{student.name}</h3>
+                {isEditing ? (
+                  <div className="edit-name-container" onClick={(e) => e.stopPropagation()}>
+                    <input
+                      type="text"
+                      value={editingName}
+                      onChange={(e) => setEditingName(e.target.value)}
+                      onKeyDown={handleEditKeyDown}
+                      className="edit-name-input"
+                      autoFocus
+                    />
+                    <div className="edit-actions">
+                      <button className="save-edit-btn" onClick={saveEdit}>Save</button>
+                      <button className="cancel-edit-btn" onClick={cancelEdit}>Cancel</button>
+                    </div>
+                  </div>
+                ) : (
+                  <h3 className="student-name">{student.name}</h3>
+                )}
                 
                 <div className="progress-section">
                   <div className="progress-bar-container">
