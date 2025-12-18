@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 import { onAuthStateChanged, signOut } from 'firebase/auth'
-import { doc, setDoc, onSnapshot, getDoc } from 'firebase/firestore'
+import { doc, setDoc, onSnapshot } from 'firebase/firestore'
 import { auth, db } from './firebase'
 import LoginScreen from './components/LoginScreen'
 import StudentList from './components/StudentList'
@@ -68,10 +68,9 @@ function App() {
   const [activeStripe, setActiveStripe] = useState('white')
   const [studentSortBy, setStudentSortBy] = useState('name-asc')
   
-  // Track timestamps to prevent sync conflicts
-  const remoteTimestamp = useRef(null)  // When remote data was last updated
-  const localChangeTime = useRef(null)  // When we last made a local change
-  const isSaving = useRef(false)        // Prevent save during save
+  // Track if we have pending local changes to save
+  const hasLocalChanges = useRef(false)
+  const isSaving = useRef(false)
 
   // Listen for auth state changes
   useEffect(() => {
@@ -80,8 +79,7 @@ function App() {
       setLoading(false)
       if (!currentUser) {
         setDataLoaded(false)
-        remoteTimestamp.current = null
-        localChangeTime.current = null
+        hasLocalChanges.current = false
       }
     })
     return () => unsubscribe()
@@ -94,28 +92,16 @@ function App() {
     const userDocRef = doc(db, 'users', user.uid)
     
     const unsubscribe = onSnapshot(userDocRef, (docSnap) => {
-      // Don't update state if we're in the middle of saving
-      if (isSaving.current) return
+      // Don't update state from remote if we're saving or have pending changes
+      // This prevents remote updates from overwriting unsaved local work
+      if (isSaving.current || hasLocalChanges.current) return
       
       if (docSnap.exists()) {
         const data = docSnap.data()
-        const newTimestamp = data.lastUpdated || null
-        
-        // Only update if remote data is newer than our last local change
-        // or if we haven't made any local changes
-        const shouldUpdate = !localChangeTime.current || 
-          !newTimestamp ||
-          new Date(newTimestamp) >= new Date(localChangeTime.current)
-        
-        if (shouldUpdate) {
-          if (data.students) setStudents(data.students)
-          if (data.checklists) setChecklists(data.checklists)
-          if (data.songs) setSongs(data.songs)
-          if (data.studentSortBy) setStudentSortBy(data.studentSortBy)
-          remoteTimestamp.current = newTimestamp
-          // Reset local change time since we accepted remote data
-          localChangeTime.current = null
-        }
+        if (data.students) setStudents(data.students)
+        if (data.checklists) setChecklists(data.checklists)
+        if (data.songs) setSongs(data.songs)
+        if (data.studentSortBy) setStudentSortBy(data.studentSortBy)
       }
       setDataLoaded(true)
     })
@@ -123,56 +109,37 @@ function App() {
     return () => unsubscribe()
   }, [user])
 
-  // Save data to Firestore (debounced) - with conflict detection
+  // Save data to Firestore (debounced)
   useEffect(() => {
     if (!user || loading || !dataLoaded) return
-    // Only save if we have pending local changes
-    if (!localChangeTime.current) return
+    if (!hasLocalChanges.current) return
 
     const saveTimeout = setTimeout(async () => {
       try {
         isSaving.current = true
         const userDocRef = doc(db, 'users', user.uid)
         
-        // Check current remote timestamp before saving
-        const currentDoc = await getDoc(userDocRef)
-        const currentRemoteTimestamp = currentDoc.exists() ? currentDoc.data().lastUpdated : null
-        
-        // Only save if remote hasn't been updated by another device since we loaded
-        const remoteIsNewer = currentRemoteTimestamp && remoteTimestamp.current &&
-          new Date(currentRemoteTimestamp) > new Date(remoteTimestamp.current)
-        
-        if (remoteIsNewer) {
-          // Another device has newer data - don't overwrite, let onSnapshot handle it
-          console.log('Remote data is newer, skipping save')
-          localChangeTime.current = null
-          isSaving.current = false
-          return
-        }
-        
-        const now = new Date().toISOString()
         await setDoc(userDocRef, {
           students,
           checklists,
           songs,
           studentSortBy,
-          lastUpdated: now
+          lastUpdated: new Date().toISOString()
         }, { merge: true })
         
-        remoteTimestamp.current = now
-        localChangeTime.current = null
+        hasLocalChanges.current = false
       } catch (error) {
         console.error('Error saving data:', error)
       }
       isSaving.current = false
-    }, 1500) // Slightly longer debounce for multi-device safety
+    }, 1000)
 
     return () => clearTimeout(saveTimeout)
   }, [students, checklists, songs, studentSortBy, user, loading, dataLoaded])
 
   // Helper to mark that we made a local change
   const markLocalChange = () => {
-    localChangeTime.current = new Date().toISOString()
+    hasLocalChanges.current = true
   }
 
   // Handle logout
