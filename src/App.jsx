@@ -59,6 +59,7 @@ const createStudentProgress = (checklists) => {
 function App() {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [dataLoaded, setDataLoaded] = useState(false) // Track if we've loaded from Firestore
   const [students, setStudents] = useState([])
   const [checklists, setChecklists] = useState(createEmptyChecklists())
   const [songs, setSongs] = useState([])
@@ -72,6 +73,10 @@ function App() {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser)
       setLoading(false)
+      // Reset dataLoaded when user changes
+      if (!currentUser) {
+        setDataLoaded(false)
+      }
     })
     return () => unsubscribe()
   }, [])
@@ -90,14 +95,16 @@ function App() {
         if (data.songs) setSongs(data.songs)
         if (data.studentSortBy) setStudentSortBy(data.studentSortBy)
       }
+      // Mark data as loaded after first snapshot (even if empty)
+      setDataLoaded(true)
     })
 
     return () => unsubscribe()
   }, [user])
 
-  // Save data to Firestore (debounced)
+  // Save data to Firestore (debounced) - only after initial data load
   useEffect(() => {
-    if (!user || loading) return
+    if (!user || loading || !dataLoaded) return
 
     const saveTimeout = setTimeout(async () => {
       try {
@@ -115,12 +122,13 @@ function App() {
     }, 1000)
 
     return () => clearTimeout(saveTimeout)
-  }, [students, checklists, songs, studentSortBy, user, loading])
+  }, [students, checklists, songs, studentSortBy, user, loading, dataLoaded])
 
   // Handle logout
   const handleLogout = async () => {
     try {
       await signOut(auth)
+      setDataLoaded(false)
       setStudents([])
       setChecklists(createEmptyChecklists())
       setSongs([])
