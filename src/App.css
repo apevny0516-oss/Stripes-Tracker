@@ -1534,6 +1534,242 @@ body {
   border-radius: 50px;
 }
 
+/* Song Details Modal */
+.song-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+  animation: fadeIn 0.2s ease;
+}
+
+.song-modal {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-xl);
+  width: 100%;
+  max-width: 550px;
+  max-height: 85vh;
+  overflow-y: auto;
+  position: relative;
+  box-shadow: var(--shadow-lg), 0 0 60px rgba(102, 126, 234, 0.15);
+  animation: modalSlideUp 0.3s ease;
+}
+
+@keyframes modalSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.modal-close-btn {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  width: 36px;
+  height: 36px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-color);
+  border-radius: 50%;
+  color: var(--text-secondary);
+  font-size: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  line-height: 1;
+  z-index: 1;
+}
+
+.modal-close-btn:hover {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: white;
+  transform: rotate(90deg);
+}
+
+.song-modal-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 2rem 2rem 1.5rem;
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.15) 0%, rgba(118, 75, 162, 0.15) 100%);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.song-modal-icon {
+  font-size: 3rem;
+  flex-shrink: 0;
+}
+
+.song-modal-title-section {
+  flex: 1;
+  min-width: 0;
+}
+
+.song-modal-artist {
+  display: block;
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  margin-bottom: 0.25rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.song-modal-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  background: var(--accent-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  line-height: 1.2;
+  word-wrap: break-word;
+}
+
+.song-modal-section {
+  padding: 1.5rem 2rem;
+}
+
+.song-modal-section h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.no-linked-concepts {
+  text-align: center;
+  padding: 2rem 1rem;
+  color: var(--text-muted);
+  background: var(--bg-elevated);
+  border-radius: var(--radius-md);
+}
+
+.no-concepts-icon {
+  font-size: 2.5rem;
+  display: block;
+  margin-bottom: 0.75rem;
+  opacity: 0.5;
+}
+
+.no-linked-concepts p {
+  margin: 0.25rem 0;
+}
+
+.linked-concepts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.stripe-concept-group {
+  background: var(--bg-elevated);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+}
+
+.stripe-concept-header {
+  padding: 0.5rem 1rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.stripe-concept-items {
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.concept-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 0.875rem;
+  background: var(--bg-card);
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  flex-wrap: wrap;
+}
+
+.concept-parent {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.concept-sub-indicator {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.concept-text {
+  color: var(--text-primary);
+}
+
+.concept-text.main {
+  font-weight: 500;
+}
+
+.song-modal-footer {
+  padding: 1rem 2rem;
+  border-top: 1px solid var(--border-color);
+  background: var(--bg-elevated);
+}
+
+.song-date-added {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-family: 'Space Mono', monospace;
+}
+
+/* Song item hover improvements */
+.song-info.clickable {
+  flex: 1;
+  cursor: pointer;
+  padding: 0.5rem;
+  margin: -0.5rem;
+  border-radius: var(--radius-sm);
+  transition: all 0.2s ease;
+}
+
+.song-info.clickable:hover {
+  background: var(--bg-elevated);
+}
+
+.song-view-hint {
+  margin-left: auto;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.song-info.clickable:hover .song-view-hint {
+  opacity: 1;
+  color: #667eea;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .app-header {
@@ -1599,5 +1835,29 @@ body {
   .artist-input,
   .title-input {
     width: 100%;
+  }
+
+  .song-modal {
+    max-height: 90vh;
+  }
+
+  .song-modal-header {
+    padding: 1.5rem;
+  }
+
+  .song-modal-icon {
+    font-size: 2.5rem;
+  }
+
+  .song-modal-title {
+    font-size: 1.25rem;
+  }
+
+  .song-modal-section {
+    padding: 1rem 1.5rem;
+  }
+
+  .song-view-hint {
+    display: none;
   }
 }

@@ -604,6 +604,7 @@ function App() {
         {view === 'songs' && (
           <SongManager
             songs={songs}
+            checklists={checklists}
             onAddSong={addSong}
             onEditSong={editSong}
             onDeleteSong={deleteSong}

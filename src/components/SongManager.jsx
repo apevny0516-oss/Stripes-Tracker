@@ -1,7 +1,17 @@
 import { useState } from 'react'
 
+const STRIPE_COLORS = {
+  white: '#f8f9fa',
+  yellow: '#ffd43b',
+  red: '#fa5252',
+  green: '#51cf66',
+  blue: '#339af0',
+  purple: '#9775fa'
+}
+
 function SongManager({
   songs,
+  checklists,
   onAddSong,
   onEditSong,
   onDeleteSong
@@ -12,6 +22,40 @@ function SongManager({
   const [editArtist, setEditArtist] = useState('')
   const [editTitle, setEditTitle] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
+  const [selectedSong, setSelectedSong] = useState(null)
+
+  // Find all concepts (checklist items/subitems) that a song is linked to
+  const getLinkedConcepts = (songId) => {
+    const linkedConcepts = []
+    
+    if (!checklists) return linkedConcepts
+    
+    Object.entries(checklists).forEach(([stripe, items]) => {
+      items.forEach(item => {
+        // Check if song is linked to main item
+        if (item.linkedSongs?.includes(songId)) {
+          linkedConcepts.push({
+            stripe,
+            text: item.text,
+            isSubItem: false
+          })
+        }
+        // Check subitems
+        item.subItems?.forEach(subItem => {
+          if (subItem.linkedSongs?.includes(songId)) {
+            linkedConcepts.push({
+              stripe,
+              text: subItem.text,
+              parentText: item.text,
+              isSubItem: true
+            })
+          }
+        })
+      })
+    })
+    
+    return linkedConcepts
+  }
 
   const handleAddSong = (e) => {
     e.preventDefault()
@@ -115,24 +159,33 @@ function SongManager({
                 </div>
               ) : (
                 <>
-                  <div className="song-info">
+                  <div 
+                    className="song-info clickable"
+                    onClick={() => setSelectedSong(song)}
+                    title="Click to view song details"
+                  >
                     <span className="song-icon">🎵</span>
                     <div className="song-details">
                       {song.artist && <span className="song-artist">{song.artist}</span>}
                       <span className="song-title">{song.title}</span>
                     </div>
+                    <span className="song-view-hint">View details →</span>
                   </div>
                   <div className="song-actions">
                     <button
                       className="action-btn edit"
-                      onClick={() => startEditing(song)}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        startEditing(song)
+                      }}
                       title="Edit song"
                     >
                       ✎
                     </button>
                     <button
                       className="action-btn delete"
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.stopPropagation()
                         if (confirm(`Delete "${song.artist ? song.artist + ' - ' : ''}${song.title}"?`)) {
                           onDeleteSong(song.id)
                         }
@@ -152,9 +205,92 @@ function SongManager({
       <div className="song-count">
         {songs.length} song{songs.length !== 1 ? 's' : ''} in database
       </div>
+
+      {/* Song Details Modal */}
+      {selectedSong && (
+        <div className="song-modal-overlay" onClick={() => setSelectedSong(null)}>
+          <div className="song-modal" onClick={(e) => e.stopPropagation()}>
+            <button className="modal-close-btn" onClick={() => setSelectedSong(null)}>×</button>
+            
+            <div className="song-modal-header">
+              <span className="song-modal-icon">🎵</span>
+              <div className="song-modal-title-section">
+                {selectedSong.artist && (
+                  <span className="song-modal-artist">{selectedSong.artist}</span>
+                )}
+                <h2 className="song-modal-title">{selectedSong.title}</h2>
+              </div>
+            </div>
+
+            <div className="song-modal-section">
+              <h3>📚 Linked Concepts</h3>
+              {(() => {
+                const linkedConcepts = getLinkedConcepts(selectedSong.id)
+                
+                if (linkedConcepts.length === 0) {
+                  return (
+                    <div className="no-linked-concepts">
+                      <span className="no-concepts-icon">🔗</span>
+                      <p>This song is not linked to any checklist concepts yet.</p>
+                      <p className="hint">Link songs to checklist items in "Manage Checklists"</p>
+                    </div>
+                  )
+                }
+
+                // Group by stripe
+                const groupedByStripe = linkedConcepts.reduce((acc, concept) => {
+                  if (!acc[concept.stripe]) acc[concept.stripe] = []
+                  acc[concept.stripe].push(concept)
+                  return acc
+                }, {})
+
+                return (
+                  <div className="linked-concepts-list">
+                    {Object.entries(groupedByStripe).map(([stripe, concepts]) => (
+                      <div key={stripe} className="stripe-concept-group">
+                        <div 
+                          className="stripe-concept-header"
+                          style={{ 
+                            backgroundColor: STRIPE_COLORS[stripe],
+                            color: ['white', 'yellow'].includes(stripe) ? '#212529' : '#ffffff'
+                          }}
+                        >
+                          {stripe.charAt(0).toUpperCase() + stripe.slice(1)} Stripe
+                        </div>
+                        <div className="stripe-concept-items">
+                          {concepts.map((concept, idx) => (
+                            <div key={idx} className="concept-item">
+                              {concept.isSubItem ? (
+                                <>
+                                  <span className="concept-parent">{concept.parentText}</span>
+                                  <span className="concept-sub-indicator">→</span>
+                                  <span className="concept-text">{concept.text}</span>
+                                </>
+                              ) : (
+                                <span className="concept-text main">{concept.text}</span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )
+              })()}
+            </div>
+
+            <div className="song-modal-footer">
+              <span className="song-date-added">
+                Added: {new Date(selectedSong.dateAdded).toLocaleDateString()}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
 
 export default SongManager
+
 
