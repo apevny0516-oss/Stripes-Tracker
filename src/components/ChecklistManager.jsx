@@ -26,7 +26,26 @@ function ChecklistManager({
   const [songSearchTerm, setSongSearchTerm] = useState('')
   const [showCreateSong, setShowCreateSong] = useState(false)
   const [newSongArtist, setNewSongArtist] = useState('')
-  const [showLinkedSongs, setShowLinkedSongs] = useState(false)
+  const [expandedSongs, setExpandedSongs] = useState(new Set()) // Track which items have songs expanded
+
+  // Toggle song visibility for a specific item/subitem
+  const toggleSongsExpanded = (itemId, subItemId = null) => {
+    const key = subItemId ? `${itemId}-${subItemId}` : itemId
+    setExpandedSongs(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(key)) {
+        newSet.delete(key)
+      } else {
+        newSet.add(key)
+      }
+      return newSet
+    })
+  }
+
+  const isSongsExpanded = (itemId, subItemId = null) => {
+    const key = subItemId ? `${itemId}-${subItemId}` : itemId
+    return expandedSongs.has(key)
+  }
 
   const items = checklists[activeStripe] || []
 
@@ -159,31 +178,46 @@ function ChecklistManager({
     setDragOverSubIndex(null)
   }
 
-  const renderLinkedSongs = (itemId, subItemId = null) => {
+  const renderLinkedSongsSection = (itemId, subItemId = null) => {
     const linkedSongIds = getLinkedSongs(itemId, subItemId)
     if (linkedSongIds.length === 0) return null
 
+    const isExpanded = isSongsExpanded(itemId, subItemId)
+
     return (
-      <div className="linked-songs">
-        {linkedSongIds.map(songId => {
-          const song = getSongById(songId)
-          if (!song) return null
-          return (
-            <div key={songId} className="linked-song-tag">
-              <span className="song-tag-icon">🎵</span>
-              <span className="song-tag-text">
-                {song.artist ? `${song.artist} - ` : ''}{song.title}
-              </span>
-              <button
-                className="unlink-song-btn"
-                onClick={() => handleUnlinkSong(itemId, subItemId, songId)}
-                title="Remove song"
-              >
-                ×
-              </button>
-            </div>
-          )
-        })}
+      <div className={`related-songs-section ${subItemId ? 'sub-item-songs' : ''}`}>
+        <button 
+          className="related-songs-toggle"
+          onClick={() => toggleSongsExpanded(itemId, subItemId)}
+        >
+          <span className={`toggle-arrow ${isExpanded ? 'expanded' : ''}`}>▶</span>
+          <span className="related-songs-label">Related Songs</span>
+          <span className="song-count-badge">{linkedSongIds.length}</span>
+        </button>
+        
+        {isExpanded && (
+          <div className="linked-songs">
+            {linkedSongIds.map(songId => {
+              const song = getSongById(songId)
+              if (!song) return null
+              return (
+                <div key={songId} className="linked-song-tag">
+                  <span className="song-tag-icon">🎵</span>
+                  <span className="song-tag-text">
+                    {song.artist ? `${song.artist} - ` : ''}{song.title}
+                  </span>
+                  <button
+                    className="unlink-song-btn"
+                    onClick={() => handleUnlinkSong(itemId, subItemId, songId)}
+                    title="Remove song"
+                  >
+                    ×
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        )}
       </div>
     )
   }
@@ -297,20 +331,11 @@ function ChecklistManager({
   return (
     <div className="checklist-manager">
       <div className="manager-header">
-        <div className="manager-title-row">
-          <h2>
-            Manage <span style={{ color: stripeColors[activeStripe] }}>
-              {activeStripe.charAt(0).toUpperCase() + activeStripe.slice(1)}
-            </span> Stripe Checklist
-          </h2>
-          <button
-            className={`toggle-songs-btn ${showLinkedSongs ? 'active' : ''}`}
-            onClick={() => setShowLinkedSongs(!showLinkedSongs)}
-            title={showLinkedSongs ? 'Hide linked songs' : 'Show linked songs'}
-          >
-            🎵 {showLinkedSongs ? 'Hide' : 'Show'} Songs
-          </button>
-        </div>
+        <h2>
+          Manage <span style={{ color: stripeColors[activeStripe] }}>
+            {activeStripe.charAt(0).toUpperCase() + activeStripe.slice(1)}
+          </span> Stripe Checklist
+        </h2>
         <p className="manager-hint">
           Items added here will appear in all students' checklists • Drag items to reorder • Link songs with 🎵
         </p>
@@ -398,7 +423,7 @@ function ChecklistManager({
                 </div>
               </div>
 
-              {showLinkedSongs && renderLinkedSongs(item.id)}
+              {renderLinkedSongsSection(item.id)}
               {renderSongLinkDropdown(item.id)}
 
               {item.subItems && item.subItems.length > 0 && (
@@ -447,7 +472,7 @@ function ChecklistManager({
                           ×
                         </button>
                       </div>
-                      {showLinkedSongs && renderLinkedSongs(item.id, subItem.id)}
+                      {renderLinkedSongsSection(item.id, subItem.id)}
                       {renderSongLinkDropdown(item.id, subItem.id)}
                     </div>
                   ))}
