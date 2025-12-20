@@ -26,6 +26,7 @@ function ChecklistManager({
   const [songSearchTerm, setSongSearchTerm] = useState('')
   const [showCreateSong, setShowCreateSong] = useState(false)
   const [newSongArtist, setNewSongArtist] = useState('')
+  const [showLinkedSongs, setShowLinkedSongs] = useState(false)
 
   const items = checklists[activeStripe] || []
 
@@ -296,11 +297,20 @@ function ChecklistManager({
   return (
     <div className="checklist-manager">
       <div className="manager-header">
-        <h2>
-          Manage <span style={{ color: stripeColors[activeStripe] }}>
-            {activeStripe.charAt(0).toUpperCase() + activeStripe.slice(1)}
-          </span> Stripe Checklist
-        </h2>
+        <div className="manager-title-row">
+          <h2>
+            Manage <span style={{ color: stripeColors[activeStripe] }}>
+              {activeStripe.charAt(0).toUpperCase() + activeStripe.slice(1)}
+            </span> Stripe Checklist
+          </h2>
+          <button
+            className={`toggle-songs-btn ${showLinkedSongs ? 'active' : ''}`}
+            onClick={() => setShowLinkedSongs(!showLinkedSongs)}
+            title={showLinkedSongs ? 'Hide linked songs' : 'Show linked songs'}
+          >
+            🎵 {showLinkedSongs ? 'Hide' : 'Show'} Songs
+          </button>
+        </div>
         <p className="manager-hint">
           Items added here will appear in all students' checklists • Drag items to reorder • Link songs with 🎵
         </p>
@@ -388,7 +398,7 @@ function ChecklistManager({
                 </div>
               </div>
 
-              {renderLinkedSongs(item.id)}
+              {showLinkedSongs && renderLinkedSongs(item.id)}
               {renderSongLinkDropdown(item.id)}
 
               {item.subItems && item.subItems.length > 0 && (
@@ -437,7 +447,7 @@ function ChecklistManager({
                           ×
                         </button>
                       </div>
-                      {renderLinkedSongs(item.id, subItem.id)}
+                      {showLinkedSongs && renderLinkedSongs(item.id, subItem.id)}
                       {renderSongLinkDropdown(item.id, subItem.id)}
                     </div>
                   ))}
