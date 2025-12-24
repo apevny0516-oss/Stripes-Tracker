@@ -53,7 +53,8 @@ const createStudentProgress = (checklists) => {
   const progress = {}
   LEVEL_ORDER.forEach(level => {
     progress[level] = {}
-    checklists[level].forEach(item => {
+    const items = checklists[level] || []
+    items.forEach(item => {
       progress[level][item.id] = false
       if (item.subItems) {
         item.subItems.forEach(sub => {
@@ -224,10 +225,10 @@ function App() {
     setChecklists(prev => {
       const updated = { ...prev }
       LEVEL_ORDER.forEach(level => {
-        updated[level] = updated[level].map(item => ({
+        updated[level] = (updated[level] || []).map(item => ({
           ...item,
           linkedSongs: (item.linkedSongs || []).filter(id => id !== songId),
-          subItems: item.subItems.map(sub => ({
+          subItems: (item.subItems || []).map(sub => ({
             ...sub,
             linkedSongs: (sub.linkedSongs || []).filter(id => id !== songId)
           }))
@@ -242,14 +243,14 @@ function App() {
     markLocalChange()
     setChecklists(prev => ({
       ...prev,
-      [level]: prev[level].map(item => {
+      [level]: (prev[level] || []).map(item => {
         if (item.id !== itemId) return item
         
         if (subItemId) {
           // Link to subitem
           return {
             ...item,
-            subItems: item.subItems.map(sub => {
+            subItems: (item.subItems || []).map(sub => {
               if (sub.id !== subItemId) return sub
               const linkedSongs = sub.linkedSongs || []
               if (linkedSongs.includes(songId)) return sub
@@ -271,13 +272,13 @@ function App() {
     markLocalChange()
     setChecklists(prev => ({
       ...prev,
-      [level]: prev[level].map(item => {
+      [level]: (prev[level] || []).map(item => {
         if (item.id !== itemId) return item
         
         if (subItemId) {
           return {
             ...item,
-            subItems: item.subItems.map(sub => {
+            subItems: (item.subItems || []).map(sub => {
               if (sub.id !== subItemId) return sub
               return { ...sub, linkedSongs: (sub.linkedSongs || []).filter(id => id !== songId) }
             })
@@ -302,7 +303,7 @@ function App() {
     
     setChecklists(prev => ({
       ...prev,
-      [level]: [...prev[level], newItem]
+      [level]: [...(prev[level] || []), newItem]
     }))
 
     setStudents(prev => prev.map(student => ({
@@ -310,7 +311,7 @@ function App() {
       progress: {
         ...student.progress,
         [level]: {
-          ...student.progress[level],
+          ...(student.progress?.[level] || {}),
           [newItem.id]: false
         }
       }
@@ -327,9 +328,9 @@ function App() {
 
     setChecklists(prev => ({
       ...prev,
-      [level]: prev[level].map(item => 
+      [level]: (prev[level] || []).map(item => 
         item.id === itemId 
-          ? { ...item, subItems: [...item.subItems, newSubItem] }
+          ? { ...item, subItems: [...(item.subItems || []), newSubItem] }
           : item
       )
     }))
@@ -339,7 +340,7 @@ function App() {
       progress: {
         ...student.progress,
         [level]: {
-          ...student.progress[level],
+          ...(student.progress?.[level] || {}),
           [newSubItem.id]: false
         }
       }
@@ -348,16 +349,16 @@ function App() {
 
   const deleteChecklistItem = (level, itemId) => {
     markLocalChange()
-    const item = checklists[level].find(i => i.id === itemId)
+    const item = (checklists[level] || []).find(i => i.id === itemId)
     const subItemIds = item?.subItems?.map(s => s.id) || []
 
     setChecklists(prev => ({
       ...prev,
-      [level]: prev[level].filter(i => i.id !== itemId)
+      [level]: (prev[level] || []).filter(i => i.id !== itemId)
     }))
 
     setStudents(prev => prev.map(student => {
-      const newProgress = { ...student.progress[level] }
+      const newProgress = { ...(student.progress?.[level] || {}) }
       delete newProgress[itemId]
       subItemIds.forEach(subId => delete newProgress[subId])
       return {
@@ -374,15 +375,15 @@ function App() {
     markLocalChange()
     setChecklists(prev => ({
       ...prev,
-      [level]: prev[level].map(item =>
+      [level]: (prev[level] || []).map(item =>
         item.id === itemId
-          ? { ...item, subItems: item.subItems.filter(s => s.id !== subItemId) }
+          ? { ...item, subItems: (item.subItems || []).filter(s => s.id !== subItemId) }
           : item
       )
     }))
 
     setStudents(prev => prev.map(student => {
-      const newProgress = { ...student.progress[level] }
+      const newProgress = { ...(student.progress?.[level] || {}) }
       delete newProgress[subItemId]
       return {
         ...student,
@@ -397,7 +398,7 @@ function App() {
   const reorderItems = (level, fromIndex, toIndex) => {
     markLocalChange()
     setChecklists(prev => {
-      const items = [...prev[level]]
+      const items = [...(prev[level] || [])]
       const [removed] = items.splice(fromIndex, 1)
       items.splice(toIndex, 0, removed)
       return {
@@ -411,9 +412,9 @@ function App() {
     markLocalChange()
     setChecklists(prev => ({
       ...prev,
-      [level]: prev[level].map(item => {
+      [level]: (prev[level] || []).map(item => {
         if (item.id !== itemId) return item
-        const subItems = [...item.subItems]
+        const subItems = [...(item.subItems || [])]
         const [removed] = subItems.splice(fromIndex, 1)
         subItems.splice(toIndex, 0, removed)
         return { ...item, subItems }
@@ -427,13 +428,14 @@ function App() {
     markLocalChange()
     setStudents(prev => prev.map(student => {
       if (student.id !== studentId) return student
+      const levelProgress = student.progress?.[level] || {}
       return {
         ...student,
         progress: {
           ...student.progress,
           [level]: {
-            ...student.progress[level],
-            [itemId]: !student.progress[level][itemId]
+            ...levelProgress,
+            [itemId]: !levelProgress[itemId]
           }
         }
       }
