@@ -2281,7 +2281,7 @@ body {
 
 /* Edit lesson button */
 .action-btn-mini.edit {
-  font-size: 0.875rem;
+  font-size: 0.75rem;
 }
 
 .action-btn-mini.edit:hover {

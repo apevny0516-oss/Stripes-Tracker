@@ -449,7 +449,7 @@ function ChecklistManager({
                                 onClick={() => setEditingLesson({ level, item, subItem: null })}
                                 title="Edit lesson content"
                               >
-                                ✎
+                                📝
                               </button>
                               <button
                                 className="action-btn-mini move"
@@ -531,7 +531,7 @@ function ChecklistManager({
                                       onClick={() => setEditingLesson({ level, item, subItem })}
                                       title="Edit lesson content"
                                     >
-                                      ✎
+                                      📝
                                     </button>
                                     <button
                                       className="action-btn-mini song"
