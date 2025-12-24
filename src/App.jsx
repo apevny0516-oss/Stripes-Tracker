@@ -422,6 +422,49 @@ function App() {
     }))
   }
 
+  const moveChecklistItem = (fromLevel, itemId, toLevel) => {
+    markLocalChange()
+    
+    // Find the item to move
+    const item = (checklists[fromLevel] || []).find(i => i.id === itemId)
+    if (!item) return
+
+    // Get all IDs (main item + sub-items) for progress migration
+    const allIds = [item.id, ...(item.subItems || []).map(s => s.id)]
+
+    // Remove from source level and add to target level
+    setChecklists(prev => ({
+      ...prev,
+      [fromLevel]: (prev[fromLevel] || []).filter(i => i.id !== itemId),
+      [toLevel]: [...(prev[toLevel] || []), item]
+    }))
+
+    // Update student progress: move progress from source to target level
+    setStudents(prev => prev.map(student => {
+      const fromProgress = { ...(student.progress?.[fromLevel] || {}) }
+      const toProgress = { ...(student.progress?.[toLevel] || {}) }
+
+      // Move progress for all IDs
+      allIds.forEach(id => {
+        if (id in fromProgress) {
+          toProgress[id] = fromProgress[id]
+          delete fromProgress[id]
+        } else {
+          toProgress[id] = false
+        }
+      })
+
+      return {
+        ...student,
+        progress: {
+          ...student.progress,
+          [fromLevel]: fromProgress,
+          [toLevel]: toProgress
+        }
+      }
+    }))
+  }
+
   // ========== PROGRESS FUNCTIONS ==========
 
   const toggleProgress = (studentId, level, itemId) => {
@@ -543,7 +586,7 @@ function App() {
         </div>
       </header>
 
-      {view !== 'songs' && (
+      {view !== 'songs' && view !== 'manage' && (
         <div className="level-tabs">
           {LEVEL_ORDER.map(level => (
             <button
@@ -599,19 +642,20 @@ function App() {
         {view === 'manage' && (
           <ChecklistManager
             checklists={checklists}
-            activeLevel={activeLevel}
             onAddItem={addChecklistItem}
             onAddSubItem={addSubItem}
             onDeleteItem={deleteChecklistItem}
             onDeleteSubItem={deleteSubItem}
             onReorderItems={reorderItems}
             onReorderSubItems={reorderSubItems}
+            onMoveItem={moveChecklistItem}
             onLinkSong={linkSong}
             onUnlinkSong={unlinkSong}
             onAddSong={addSong}
             songs={songs}
             levelColors={LEVEL_COLORS}
             levelNames={LEVEL_NAMES}
+            levelOrder={LEVEL_ORDER}
           />
         )}
 

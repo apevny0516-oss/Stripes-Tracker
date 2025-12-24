@@ -2,36 +2,46 @@ import { useState } from 'react'
 
 function ChecklistManager({
   checklists,
-  activeLevel,
   onAddItem,
   onAddSubItem,
   onDeleteItem,
   onDeleteSubItem,
   onReorderItems,
   onReorderSubItems,
+  onMoveItem,
   onLinkSong,
   onUnlinkSong,
   onAddSong,
   songs,
   levelColors,
-  levelNames
+  levelNames,
+  levelOrder
 }) {
-  const [newItemText, setNewItemText] = useState('')
-  const [addingSubItemTo, setAddingSubItemTo] = useState(null)
+  const [newItemTexts, setNewItemTexts] = useState({})
+  const [addingSubItemTo, setAddingSubItemTo] = useState(null) // { level, itemId }
   const [newSubItemText, setNewSubItemText] = useState('')
-  const [draggedItem, setDraggedItem] = useState(null)
-  const [draggedSubItem, setDraggedSubItem] = useState(null)
-  const [dragOverIndex, setDragOverIndex] = useState(null)
-  const [dragOverSubIndex, setDragOverSubIndex] = useState(null)
-  const [linkingSongTo, setLinkingSongTo] = useState(null) // { itemId, subItemId? }
+  const [collapsedLevels, setCollapsedLevels] = useState(new Set())
+  const [movingItem, setMovingItem] = useState(null) // { level, itemId }
+  const [linkingSongTo, setLinkingSongTo] = useState(null) // { level, itemId, subItemId? }
   const [songSearchTerm, setSongSearchTerm] = useState('')
   const [showCreateSong, setShowCreateSong] = useState(false)
   const [newSongArtist, setNewSongArtist] = useState('')
-  const [expandedSongs, setExpandedSongs] = useState(new Set()) // Track which items have songs expanded
+  const [expandedSongs, setExpandedSongs] = useState(new Set())
 
-  // Toggle song visibility for a specific item/subitem
-  const toggleSongsExpanded = (itemId, subItemId = null) => {
-    const key = subItemId ? `${itemId}-${subItemId}` : itemId
+  const toggleLevelCollapsed = (level) => {
+    setCollapsedLevels(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(level)) {
+        newSet.delete(level)
+      } else {
+        newSet.add(level)
+      }
+      return newSet
+    })
+  }
+
+  const toggleSongsExpanded = (level, itemId, subItemId = null) => {
+    const key = subItemId ? `${level}-${itemId}-${subItemId}` : `${level}-${itemId}`
     setExpandedSongs(prev => {
       const newSet = new Set(prev)
       if (newSet.has(key)) {
@@ -43,31 +53,30 @@ function ChecklistManager({
     })
   }
 
-  const isSongsExpanded = (itemId, subItemId = null) => {
-    const key = subItemId ? `${itemId}-${subItemId}` : itemId
+  const isSongsExpanded = (level, itemId, subItemId = null) => {
+    const key = subItemId ? `${level}-${itemId}-${subItemId}` : `${level}-${itemId}`
     return expandedSongs.has(key)
   }
 
-  const items = checklists[activeLevel] || []
-
-  const handleAddItem = (e) => {
+  const handleAddItem = (e, level) => {
     e.preventDefault()
-    if (newItemText.trim()) {
-      onAddItem(activeLevel, newItemText.trim())
-      setNewItemText('')
+    const text = newItemTexts[level]?.trim()
+    if (text) {
+      onAddItem(level, text)
+      setNewItemTexts(prev => ({ ...prev, [level]: '' }))
     }
   }
 
-  const handleAddSubItem = (itemId) => {
+  const handleAddSubItem = (level, itemId) => {
     if (newSubItemText.trim()) {
-      onAddSubItem(activeLevel, itemId, newSubItemText.trim())
+      onAddSubItem(level, itemId, newSubItemText.trim())
       setNewSubItemText('')
       setAddingSubItemTo(null)
     }
   }
 
-  // Get linked songs for an item or subitem
-  const getLinkedSongs = (itemId, subItemId = null) => {
+  const getLinkedSongs = (level, itemId, subItemId = null) => {
+    const items = checklists[level] || []
     const item = items.find(i => i.id === itemId)
     if (!item) return []
     
@@ -82,7 +91,7 @@ function ChecklistManager({
 
   const handleLinkSong = (songId) => {
     if (linkingSongTo) {
-      onLinkSong(activeLevel, linkingSongTo.itemId, linkingSongTo.subItemId, songId)
+      onLinkSong(linkingSongTo.level, linkingSongTo.itemId, linkingSongTo.subItemId, songId)
       setLinkingSongTo(null)
       setSongSearchTerm('')
       setShowCreateSong(false)
@@ -90,24 +99,28 @@ function ChecklistManager({
     }
   }
 
-  const handleUnlinkSong = (itemId, subItemId, songId) => {
-    onUnlinkSong(activeLevel, itemId, subItemId, songId)
+  const handleUnlinkSong = (level, itemId, subItemId, songId) => {
+    onUnlinkSong(level, itemId, subItemId, songId)
   }
 
   const handleCreateAndLinkSong = () => {
     if (songSearchTerm.trim() && linkingSongTo) {
-      // Create the song and get its ID
       const newSongId = onAddSong(newSongArtist.trim(), songSearchTerm.trim())
-      // Link it immediately
       if (newSongId) {
-        onLinkSong(activeLevel, linkingSongTo.itemId, linkingSongTo.subItemId, newSongId)
+        onLinkSong(linkingSongTo.level, linkingSongTo.itemId, linkingSongTo.subItemId, newSongId)
       }
-      // Reset state
       setLinkingSongTo(null)
       setSongSearchTerm('')
       setShowCreateSong(false)
       setNewSongArtist('')
     }
+  }
+
+  const handleMoveItem = (toLevel) => {
+    if (movingItem && toLevel !== movingItem.level) {
+      onMoveItem(movingItem.level, movingItem.itemId, toLevel)
+    }
+    setMovingItem(null)
   }
 
   const filteredSongs = songs.filter(song =>
@@ -115,81 +128,17 @@ function ChecklistManager({
     song.artist.toLowerCase().includes(songSearchTerm.toLowerCase())
   )
 
-  // Drag handlers for main items
-  const handleDragStart = (e, index) => {
-    setDraggedItem(index)
-    e.dataTransfer.effectAllowed = 'move'
-    e.dataTransfer.setData('text/plain', index)
-    e.target.classList.add('dragging')
-  }
-
-  const handleDragEnd = (e) => {
-    e.target.classList.remove('dragging')
-    setDraggedItem(null)
-    setDragOverIndex(null)
-  }
-
-  const handleDragOver = (e, index) => {
-    e.preventDefault()
-    if (draggedItem === null || draggedSubItem !== null) return
-    setDragOverIndex(index)
-  }
-
-  const handleDrop = (e, toIndex) => {
-    e.preventDefault()
-    if (draggedItem === null || draggedSubItem !== null) return
-    
-    if (draggedItem !== toIndex) {
-      onReorderItems(activeLevel, draggedItem, toIndex)
-    }
-    setDraggedItem(null)
-    setDragOverIndex(null)
-  }
-
-  // Drag handlers for sub-items
-  const handleSubDragStart = (e, itemId, subIndex) => {
-    e.stopPropagation()
-    setDraggedSubItem({ itemId, subIndex })
-    e.dataTransfer.effectAllowed = 'move'
-    e.target.classList.add('dragging')
-  }
-
-  const handleSubDragEnd = (e) => {
-    e.target.classList.remove('dragging')
-    setDraggedSubItem(null)
-    setDragOverSubIndex(null)
-  }
-
-  const handleSubDragOver = (e, itemId, subIndex) => {
-    e.preventDefault()
-    e.stopPropagation()
-    if (!draggedSubItem || draggedSubItem.itemId !== itemId) return
-    setDragOverSubIndex(subIndex)
-  }
-
-  const handleSubDrop = (e, itemId, toIndex) => {
-    e.preventDefault()
-    e.stopPropagation()
-    if (!draggedSubItem || draggedSubItem.itemId !== itemId) return
-    
-    if (draggedSubItem.subIndex !== toIndex) {
-      onReorderSubItems(activeLevel, itemId, draggedSubItem.subIndex, toIndex)
-    }
-    setDraggedSubItem(null)
-    setDragOverSubIndex(null)
-  }
-
-  const renderLinkedSongsSection = (itemId, subItemId = null) => {
-    const linkedSongIds = getLinkedSongs(itemId, subItemId)
+  const renderLinkedSongsSection = (level, itemId, subItemId = null) => {
+    const linkedSongIds = getLinkedSongs(level, itemId, subItemId)
     if (linkedSongIds.length === 0) return null
 
-    const isExpanded = isSongsExpanded(itemId, subItemId)
+    const isExpanded = isSongsExpanded(level, itemId, subItemId)
 
     return (
       <div className={`related-songs-section ${subItemId ? 'sub-item-songs' : ''}`}>
         <button 
           className="related-songs-toggle"
-          onClick={() => toggleSongsExpanded(itemId, subItemId)}
+          onClick={() => toggleSongsExpanded(level, itemId, subItemId)}
         >
           <span className={`toggle-arrow ${isExpanded ? 'expanded' : ''}`}>▶</span>
           <span className="related-songs-label">Related Songs</span>
@@ -209,7 +158,7 @@ function ChecklistManager({
                   </span>
                   <button
                     className="unlink-song-btn"
-                    onClick={() => handleUnlinkSong(itemId, subItemId, songId)}
+                    onClick={() => handleUnlinkSong(level, itemId, subItemId, songId)}
                     title="Remove song"
                   >
                     ×
@@ -223,12 +172,14 @@ function ChecklistManager({
     )
   }
 
-  const renderSongLinkDropdown = (itemId, subItemId = null) => {
-    const isActive = linkingSongTo?.itemId === itemId && linkingSongTo?.subItemId === subItemId
+  const renderSongLinkDropdown = (level, itemId, subItemId = null) => {
+    const isActive = linkingSongTo?.level === level && 
+                     linkingSongTo?.itemId === itemId && 
+                     linkingSongTo?.subItemId === subItemId
     
     if (!isActive) return null
 
-    const linkedSongIds = getLinkedSongs(itemId, subItemId)
+    const linkedSongIds = getLinkedSongs(level, itemId, subItemId)
     const availableSongs = filteredSongs.filter(s => !linkedSongIds.includes(s.id))
     const hasSearchTerm = songSearchTerm.trim().length > 0
 
@@ -261,16 +212,10 @@ function ChecklistManager({
               <span>{newSongArtist ? `${newSongArtist} - ` : ''}{songSearchTerm}</span>
             </div>
             <div className="create-song-actions">
-              <button
-                className="create-song-btn"
-                onClick={handleCreateAndLinkSong}
-              >
+              <button className="create-song-btn" onClick={handleCreateAndLinkSong}>
                 Create & Link
               </button>
-              <button
-                className="cancel-create-btn"
-                onClick={() => setShowCreateSong(false)}
-              >
+              <button className="cancel-create-btn" onClick={() => setShowCreateSong(false)}>
                 Back
               </button>
             </div>
@@ -303,10 +248,7 @@ function ChecklistManager({
             </div>
             
             {hasSearchTerm && (
-              <button
-                className="create-new-song-btn"
-                onClick={() => setShowCreateSong(true)}
-              >
+              <button className="create-new-song-btn" onClick={() => setShowCreateSong(true)}>
                 <span>+</span> Create "{songSearchTerm}" as new song
               </button>
             )}
@@ -328,199 +270,233 @@ function ChecklistManager({
     )
   }
 
+  const renderMoveDropdown = (level, itemId) => {
+    const isActive = movingItem?.level === level && movingItem?.itemId === itemId
+    if (!isActive) return null
+
+    return (
+      <div className="move-item-dropdown">
+        <p className="move-dropdown-title">Move to:</p>
+        <div className="move-level-options">
+          {levelOrder.filter(l => l !== level).map(targetLevel => (
+            <button
+              key={targetLevel}
+              className="move-level-btn"
+              style={{ 
+                backgroundColor: levelColors[targetLevel],
+                color: '#fff'
+              }}
+              onClick={() => handleMoveItem(targetLevel)}
+            >
+              {levelNames[targetLevel]}
+            </button>
+          ))}
+        </div>
+        <button className="close-dropdown-btn" onClick={() => setMovingItem(null)}>
+          Cancel
+        </button>
+      </div>
+    )
+  }
+
   return (
-    <div className="checklist-manager">
+    <div className="checklist-manager all-levels">
       <div className="manager-header">
-        <h2>
-          Manage <span style={{ color: levelColors[activeLevel] }}>
-            {levelNames[activeLevel]}
-          </span> Checklist
-        </h2>
+        <h2>Manage Checklists</h2>
         <p className="manager-hint">
-          Items added here will appear in all students' checklists • Drag items to reorder • Link songs with 🎵
+          All levels shown • Click level header to collapse • Use ↔ to move items between levels
         </p>
       </div>
 
-      <form onSubmit={handleAddItem} className="add-item-form">
-        <input
-          type="text"
-          value={newItemText}
-          onChange={(e) => setNewItemText(e.target.value)}
-          placeholder="Add a new checklist item..."
-          className="item-input"
-        />
-        <button 
-          type="submit" 
-          className="add-btn"
-          style={{ backgroundColor: levelColors[activeLevel] }}
-        >
-          <span>+</span> Add Item
-        </button>
-      </form>
+      <div className="levels-grid">
+        {levelOrder.map(level => {
+          const items = checklists[level] || []
+          const isCollapsed = collapsedLevels.has(level)
 
-      {items.length === 0 ? (
-        <div className="empty-state">
-          <span className="empty-icon">📝</span>
-          <p>No items in this checklist yet.</p>
-          <p className="hint">Add items above to create requirements for this level.</p>
-        </div>
-      ) : (
-        <div className="items-list">
-          {items.map((item, index) => (
+          return (
             <div 
-              key={item.id} 
-              className={`manager-item ${dragOverIndex === index ? 'drag-over' : ''} ${draggedItem === index ? 'dragging' : ''}`}
-              draggable
-              onDragStart={(e) => handleDragStart(e, index)}
-              onDragEnd={handleDragEnd}
-              onDragOver={(e) => handleDragOver(e, index)}
-              onDrop={(e) => handleDrop(e, index)}
+              key={level} 
+              className={`level-column ${isCollapsed ? 'collapsed' : ''}`}
+              style={{ '--level-color': levelColors[level] }}
             >
-              <div className="item-header">
-                <div className="drag-handle" title="Drag to reorder">
-                  <span>⋮⋮</span>
-                </div>
-                <span className="item-number">{index + 1}</span>
-                <span className="item-text">{item.text}</span>
-                <div className="item-actions">
-                  <button
-                    className="action-btn link-song"
-                    onClick={() => {
-                      if (linkingSongTo?.itemId === item.id && !linkingSongTo?.subItemId) {
-                        setLinkingSongTo(null)
-                      } else {
-                        setLinkingSongTo({ itemId: item.id, subItemId: null })
-                        setSongSearchTerm('')
-                        setShowCreateSong(false)
-                        setNewSongArtist('')
-                      }
-                    }}
-                    title="Link song"
-                  >
-                    🎵
-                  </button>
-                  <button
-                    className="action-btn add-sub"
-                    onClick={() => {
-                      setAddingSubItemTo(addingSubItemTo === item.id ? null : item.id)
-                      setNewSubItemText('')
-                    }}
-                    title="Add sub-item"
-                  >
-                    + Sub
-                  </button>
-                  <button
-                    className="action-btn delete"
-                    onClick={() => {
-                      if (confirm('Delete this item and all its sub-items?')) {
-                        onDeleteItem(activeLevel, item.id)
-                      }
-                    }}
-                    title="Delete item"
-                  >
-                    ×
-                  </button>
-                </div>
+              <div 
+                className="level-column-header"
+                onClick={() => toggleLevelCollapsed(level)}
+                style={{ backgroundColor: levelColors[level] }}
+              >
+                <span className={`collapse-arrow ${isCollapsed ? '' : 'expanded'}`}>▶</span>
+                <h3>{levelNames[level]}</h3>
+                <span className="item-count">{items.length}</span>
               </div>
 
-              {renderLinkedSongsSection(item.id)}
-              {renderSongLinkDropdown(item.id)}
-
-              {item.subItems && item.subItems.length > 0 && (
-                <div className="sub-items-list">
-                  {item.subItems.map((subItem, subIndex) => (
-                    <div 
-                      key={subItem.id} 
-                      className={`sub-item-container ${dragOverSubIndex === subIndex && draggedSubItem?.itemId === item.id ? 'drag-over' : ''}`}
+              {!isCollapsed && (
+                <div className="level-column-content">
+                  <form onSubmit={(e) => handleAddItem(e, level)} className="level-add-form">
+                    <input
+                      type="text"
+                      value={newItemTexts[level] || ''}
+                      onChange={(e) => setNewItemTexts(prev => ({ ...prev, [level]: e.target.value }))}
+                      placeholder="Add item..."
+                      className="level-item-input"
+                    />
+                    <button 
+                      type="submit" 
+                      className="level-add-btn"
+                      style={{ backgroundColor: levelColors[level] }}
                     >
-                      <div 
-                        className="sub-item"
-                        draggable
-                        onDragStart={(e) => handleSubDragStart(e, item.id, subIndex)}
-                        onDragEnd={handleSubDragEnd}
-                        onDragOver={(e) => handleSubDragOver(e, item.id, subIndex)}
-                        onDrop={(e) => handleSubDrop(e, item.id, subIndex)}
-                      >
-                        <div className="sub-drag-handle" title="Drag to reorder">⋮</div>
-                        <span className="sub-bullet">•</span>
-                        <span className="sub-text">{subItem.text}</span>
-                        <button
-                          className="action-btn link-song small"
-                          onClick={() => {
-                            if (linkingSongTo?.itemId === item.id && linkingSongTo?.subItemId === subItem.id) {
-                              setLinkingSongTo(null)
-                            } else {
-                              setLinkingSongTo({ itemId: item.id, subItemId: subItem.id })
-                              setSongSearchTerm('')
-                              setShowCreateSong(false)
-                              setNewSongArtist('')
-                            }
-                          }}
-                          title="Link song"
-                        >
-                          🎵
-                        </button>
-                        <button
-                          className="action-btn delete small"
-                          onClick={() => {
-                            if (confirm('Delete this sub-item?')) {
-                              onDeleteSubItem(activeLevel, item.id, subItem.id)
-                            }
-                          }}
-                          title="Delete sub-item"
-                        >
-                          ×
-                        </button>
-                      </div>
-                      {renderLinkedSongsSection(item.id, subItem.id)}
-                      {renderSongLinkDropdown(item.id, subItem.id)}
-                    </div>
-                  ))}
-                </div>
-              )}
+                      +
+                    </button>
+                  </form>
 
-              {addingSubItemTo === item.id && (
-                <div className="add-sub-item-form">
-                  <input
-                    type="text"
-                    value={newSubItemText}
-                    onChange={(e) => setNewSubItemText(e.target.value)}
-                    placeholder="Enter sub-item..."
-                    className="sub-item-input"
-                    autoFocus
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault()
-                        handleAddSubItem(item.id)
-                      }
-                      if (e.key === 'Escape') {
-                        setAddingSubItemTo(null)
-                        setNewSubItemText('')
-                      }
-                    }}
-                  />
-                  <button
-                    className="add-sub-btn"
-                    onClick={() => handleAddSubItem(item.id)}
-                    style={{ backgroundColor: levelColors[activeLevel] }}
-                  >
-                    Add
-                  </button>
-                  <button
-                    className="cancel-btn"
-                    onClick={() => {
-                      setAddingSubItemTo(null)
-                      setNewSubItemText('')
-                    }}
-                  >
-                    Cancel
-                  </button>
+                  {items.length === 0 ? (
+                    <div className="level-empty">
+                      <span>No items yet</span>
+                    </div>
+                  ) : (
+                    <div className="level-items-list">
+                      {items.map((item, index) => (
+                        <div key={item.id} className="level-manager-item">
+                          <div className="level-item-header">
+                            <span className="level-item-number">{index + 1}</span>
+                            <span className="level-item-text">{item.text}</span>
+                            <div className="level-item-actions">
+                              <button
+                                className="action-btn-mini move"
+                                onClick={() => {
+                                  if (movingItem?.itemId === item.id) {
+                                    setMovingItem(null)
+                                  } else {
+                                    setMovingItem({ level, itemId: item.id })
+                                  }
+                                }}
+                                title="Move to another level"
+                              >
+                                ↔
+                              </button>
+                              <button
+                                className="action-btn-mini song"
+                                onClick={() => {
+                                  if (linkingSongTo?.itemId === item.id && !linkingSongTo?.subItemId) {
+                                    setLinkingSongTo(null)
+                                  } else {
+                                    setLinkingSongTo({ level, itemId: item.id, subItemId: null })
+                                    setSongSearchTerm('')
+                                  }
+                                }}
+                                title="Link song"
+                              >
+                                🎵
+                              </button>
+                              <button
+                                className="action-btn-mini sub"
+                                onClick={() => {
+                                  if (addingSubItemTo?.itemId === item.id) {
+                                    setAddingSubItemTo(null)
+                                  } else {
+                                    setAddingSubItemTo({ level, itemId: item.id })
+                                    setNewSubItemText('')
+                                  }
+                                }}
+                                title="Add sub-item"
+                              >
+                                +
+                              </button>
+                              <button
+                                className="action-btn-mini delete"
+                                onClick={() => {
+                                  if (confirm('Delete this item?')) {
+                                    onDeleteItem(level, item.id)
+                                  }
+                                }}
+                                title="Delete"
+                              >
+                                ×
+                              </button>
+                            </div>
+                          </div>
+
+                          {renderMoveDropdown(level, item.id)}
+                          {renderLinkedSongsSection(level, item.id)}
+                          {renderSongLinkDropdown(level, item.id)}
+
+                          {item.subItems && item.subItems.length > 0 && (
+                            <div className="level-sub-items">
+                              {item.subItems.map((subItem, subIndex) => (
+                                <div key={subItem.id} className="level-sub-item">
+                                  <span className="sub-bullet">•</span>
+                                  <span className="level-sub-text">{subItem.text}</span>
+                                  <div className="level-sub-actions">
+                                    <button
+                                      className="action-btn-mini song"
+                                      onClick={() => {
+                                        if (linkingSongTo?.itemId === item.id && linkingSongTo?.subItemId === subItem.id) {
+                                          setLinkingSongTo(null)
+                                        } else {
+                                          setLinkingSongTo({ level, itemId: item.id, subItemId: subItem.id })
+                                          setSongSearchTerm('')
+                                        }
+                                      }}
+                                      title="Link song"
+                                    >
+                                      🎵
+                                    </button>
+                                    <button
+                                      className="action-btn-mini delete"
+                                      onClick={() => {
+                                        if (confirm('Delete this sub-item?')) {
+                                          onDeleteSubItem(level, item.id, subItem.id)
+                                        }
+                                      }}
+                                      title="Delete"
+                                    >
+                                      ×
+                                    </button>
+                                  </div>
+                                  {renderLinkedSongsSection(level, item.id, subItem.id)}
+                                  {renderSongLinkDropdown(level, item.id, subItem.id)}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {addingSubItemTo?.level === level && addingSubItemTo?.itemId === item.id && (
+                            <div className="level-add-sub-form">
+                              <input
+                                type="text"
+                                value={newSubItemText}
+                                onChange={(e) => setNewSubItemText(e.target.value)}
+                                placeholder="Sub-item..."
+                                className="level-sub-input"
+                                autoFocus
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault()
+                                    handleAddSubItem(level, item.id)
+                                  }
+                                  if (e.key === 'Escape') {
+                                    setAddingSubItemTo(null)
+                                  }
+                                }}
+                              />
+                              <button
+                                className="level-sub-add-btn"
+                                onClick={() => handleAddSubItem(level, item.id)}
+                                style={{ backgroundColor: levelColors[level] }}
+                              >
+                                Add
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
-          ))}
-        </div>
-      )}
+          )
+        })}
+      </div>
     </div>
   )
 }
