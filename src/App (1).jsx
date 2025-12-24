@@ -10,40 +10,31 @@ import ChecklistManager from './components/ChecklistManager'
 import SongManager from './components/SongManager'
 import './App.css'
 
-const LEVEL_ORDER = ['level1', 'level2', 'level3', 'level4', 'level5', 'level6']
+const STRIPE_ORDER = ['white', 'yellow', 'red', 'green', 'blue', 'purple']
 
-const LEVEL_COLORS = {
-  level1: '#64748b',
-  level2: '#f59e0b',
-  level3: '#ef4444',
-  level4: '#22c55e',
-  level5: '#3b82f6',
-  level6: '#8b5cf6'
+const STRIPE_COLORS = {
+  white: '#f8f9fa',
+  yellow: '#ffd43b',
+  red: '#fa5252',
+  green: '#51cf66',
+  blue: '#339af0',
+  purple: '#9775fa'
 }
 
-const LEVEL_TEXT_COLORS = {
-  level1: '#ffffff',
-  level2: '#ffffff',
-  level3: '#ffffff',
-  level4: '#ffffff',
-  level5: '#ffffff',
-  level6: '#ffffff'
+const STRIPE_TEXT_COLORS = {
+  white: '#212529',
+  yellow: '#212529',
+  red: '#ffffff',
+  green: '#ffffff',
+  blue: '#ffffff',
+  purple: '#ffffff'
 }
 
-const LEVEL_NAMES = {
-  level1: 'Level 1',
-  level2: 'Level 2',
-  level3: 'Level 3',
-  level4: 'Level 4',
-  level5: 'Level 5',
-  level6: 'Level 6'
-}
-
-// Initialize empty checklists for each level
+// Initialize empty checklists for each stripe
 const createEmptyChecklists = () => {
   const checklists = {}
-  LEVEL_ORDER.forEach(level => {
-    checklists[level] = []
+  STRIPE_ORDER.forEach(stripe => {
+    checklists[stripe] = []
   })
   return checklists
 }
@@ -51,13 +42,13 @@ const createEmptyChecklists = () => {
 // Initialize student progress for all checklists
 const createStudentProgress = (checklists) => {
   const progress = {}
-  LEVEL_ORDER.forEach(level => {
-    progress[level] = {}
-    checklists[level].forEach(item => {
-      progress[level][item.id] = false
+  STRIPE_ORDER.forEach(stripe => {
+    progress[stripe] = {}
+    checklists[stripe].forEach(item => {
+      progress[stripe][item.id] = false
       if (item.subItems) {
         item.subItems.forEach(sub => {
-          progress[level][sub.id] = false
+          progress[stripe][sub.id] = false
         })
       }
     })
@@ -74,7 +65,7 @@ function App() {
   const [songs, setSongs] = useState([])
   const [selectedStudent, setSelectedStudent] = useState(null)
   const [view, setView] = useState('students')
-  const [activeLevel, setActiveLevel] = useState('level1')
+  const [activeStripe, setActiveStripe] = useState('white')
   const [studentSortBy, setStudentSortBy] = useState('name-asc')
   
   // Track if we have pending local changes to save
@@ -173,7 +164,7 @@ function App() {
     const newStudent = {
       id: uuidv4(),
       name,
-      currentLevel: 'level1',
+      currentStripe: 'white',
       progress: createStudentProgress(checklists),
       dateAdded: new Date().toISOString()
     }
@@ -223,8 +214,8 @@ function App() {
     // Also remove this song from any checklist items it's linked to
     setChecklists(prev => {
       const updated = { ...prev }
-      LEVEL_ORDER.forEach(level => {
-        updated[level] = updated[level].map(item => ({
+      STRIPE_ORDER.forEach(stripe => {
+        updated[stripe] = updated[stripe].map(item => ({
           ...item,
           linkedSongs: (item.linkedSongs || []).filter(id => id !== songId),
           subItems: item.subItems.map(sub => ({
@@ -238,11 +229,11 @@ function App() {
   }
 
   // Link a song to a checklist item or subitem
-  const linkSong = (level, itemId, subItemId, songId) => {
+  const linkSong = (stripe, itemId, subItemId, songId) => {
     markLocalChange()
     setChecklists(prev => ({
       ...prev,
-      [level]: prev[level].map(item => {
+      [stripe]: prev[stripe].map(item => {
         if (item.id !== itemId) return item
         
         if (subItemId) {
@@ -267,11 +258,11 @@ function App() {
   }
 
   // Unlink a song from a checklist item or subitem
-  const unlinkSong = (level, itemId, subItemId, songId) => {
+  const unlinkSong = (stripe, itemId, subItemId, songId) => {
     markLocalChange()
     setChecklists(prev => ({
       ...prev,
-      [level]: prev[level].map(item => {
+      [stripe]: prev[stripe].map(item => {
         if (item.id !== itemId) return item
         
         if (subItemId) {
@@ -291,7 +282,7 @@ function App() {
 
   // ========== CHECKLIST FUNCTIONS ==========
 
-  const addChecklistItem = (level, itemText) => {
+  const addChecklistItem = (stripe, itemText) => {
     markLocalChange()
     const newItem = {
       id: uuidv4(),
@@ -302,22 +293,22 @@ function App() {
     
     setChecklists(prev => ({
       ...prev,
-      [level]: [...prev[level], newItem]
+      [stripe]: [...prev[stripe], newItem]
     }))
 
     setStudents(prev => prev.map(student => ({
       ...student,
       progress: {
         ...student.progress,
-        [level]: {
-          ...student.progress[level],
+        [stripe]: {
+          ...student.progress[stripe],
           [newItem.id]: false
         }
       }
     })))
   }
 
-  const addSubItem = (level, itemId, subItemText) => {
+  const addSubItem = (stripe, itemId, subItemText) => {
     markLocalChange()
     const newSubItem = {
       id: uuidv4(),
@@ -327,7 +318,7 @@ function App() {
 
     setChecklists(prev => ({
       ...prev,
-      [level]: prev[level].map(item => 
+      [stripe]: prev[stripe].map(item => 
         item.id === itemId 
           ? { ...item, subItems: [...item.subItems, newSubItem] }
           : item
@@ -338,43 +329,43 @@ function App() {
       ...student,
       progress: {
         ...student.progress,
-        [level]: {
-          ...student.progress[level],
+        [stripe]: {
+          ...student.progress[stripe],
           [newSubItem.id]: false
         }
       }
     })))
   }
 
-  const deleteChecklistItem = (level, itemId) => {
+  const deleteChecklistItem = (stripe, itemId) => {
     markLocalChange()
-    const item = checklists[level].find(i => i.id === itemId)
+    const item = checklists[stripe].find(i => i.id === itemId)
     const subItemIds = item?.subItems?.map(s => s.id) || []
 
     setChecklists(prev => ({
       ...prev,
-      [level]: prev[level].filter(i => i.id !== itemId)
+      [stripe]: prev[stripe].filter(i => i.id !== itemId)
     }))
 
     setStudents(prev => prev.map(student => {
-      const newProgress = { ...student.progress[level] }
+      const newProgress = { ...student.progress[stripe] }
       delete newProgress[itemId]
       subItemIds.forEach(subId => delete newProgress[subId])
       return {
         ...student,
         progress: {
           ...student.progress,
-          [level]: newProgress
+          [stripe]: newProgress
         }
       }
     }))
   }
 
-  const deleteSubItem = (level, itemId, subItemId) => {
+  const deleteSubItem = (stripe, itemId, subItemId) => {
     markLocalChange()
     setChecklists(prev => ({
       ...prev,
-      [level]: prev[level].map(item =>
+      [stripe]: prev[stripe].map(item =>
         item.id === itemId
           ? { ...item, subItems: item.subItems.filter(s => s.id !== subItemId) }
           : item
@@ -382,36 +373,36 @@ function App() {
     }))
 
     setStudents(prev => prev.map(student => {
-      const newProgress = { ...student.progress[level] }
+      const newProgress = { ...student.progress[stripe] }
       delete newProgress[subItemId]
       return {
         ...student,
         progress: {
           ...student.progress,
-          [level]: newProgress
+          [stripe]: newProgress
         }
       }
     }))
   }
 
-  const reorderItems = (level, fromIndex, toIndex) => {
+  const reorderItems = (stripe, fromIndex, toIndex) => {
     markLocalChange()
     setChecklists(prev => {
-      const items = [...prev[level]]
+      const items = [...prev[stripe]]
       const [removed] = items.splice(fromIndex, 1)
       items.splice(toIndex, 0, removed)
       return {
         ...prev,
-        [level]: items
+        [stripe]: items
       }
     })
   }
 
-  const reorderSubItems = (level, itemId, fromIndex, toIndex) => {
+  const reorderSubItems = (stripe, itemId, fromIndex, toIndex) => {
     markLocalChange()
     setChecklists(prev => ({
       ...prev,
-      [level]: prev[level].map(item => {
+      [stripe]: prev[stripe].map(item => {
         if (item.id !== itemId) return item
         const subItems = [...item.subItems]
         const [removed] = subItems.splice(fromIndex, 1)
@@ -423,7 +414,7 @@ function App() {
 
   // ========== PROGRESS FUNCTIONS ==========
 
-  const toggleProgress = (studentId, level, itemId) => {
+  const toggleProgress = (studentId, stripe, itemId) => {
     markLocalChange()
     setStudents(prev => prev.map(student => {
       if (student.id !== studentId) return student
@@ -431,9 +422,9 @@ function App() {
         ...student,
         progress: {
           ...student.progress,
-          [level]: {
-            ...student.progress[level],
-            [itemId]: !student.progress[level][itemId]
+          [stripe]: {
+            ...student.progress[stripe],
+            [itemId]: !student.progress[stripe][itemId]
           }
         }
       }
@@ -444,19 +435,19 @@ function App() {
     markLocalChange()
     setStudents(prev => prev.map(student => {
       if (student.id !== studentId) return student
-      const currentIndex = LEVEL_ORDER.indexOf(student.currentLevel)
-      if (currentIndex < LEVEL_ORDER.length - 1) {
+      const currentIndex = STRIPE_ORDER.indexOf(student.currentStripe)
+      if (currentIndex < STRIPE_ORDER.length - 1) {
         return {
           ...student,
-          currentLevel: LEVEL_ORDER[currentIndex + 1]
+          currentStripe: STRIPE_ORDER[currentIndex + 1]
         }
       }
       return student
     }))
   }
 
-  const calculateCompletion = (student, level) => {
-    const items = checklists[level]
+  const calculateCompletion = (student, stripe) => {
+    const items = checklists[stripe]
     if (!items || items.length === 0) return 0
     
     let total = 0
@@ -464,10 +455,10 @@ function App() {
     
     items.forEach(item => {
       total++
-      if (student.progress[level]?.[item.id]) completed++
+      if (student.progress[stripe]?.[item.id]) completed++
       item.subItems?.forEach(sub => {
         total++
-        if (student.progress[level]?.[sub.id]) completed++
+        if (student.progress[stripe]?.[sub.id]) completed++
       })
     })
     
@@ -498,8 +489,8 @@ function App() {
     <div className="app">
       <header className="app-header">
         <div className="logo">
-          <span className="logo-icon">📚</span>
-          <h1>Progress Tracker</h1>
+          <span className="logo-icon">🥋</span>
+          <h1>Stripes Tracker</h1>
         </div>
         <nav className="nav-tabs">
           <button 
@@ -542,18 +533,18 @@ function App() {
       </header>
 
       {view !== 'songs' && (
-        <div className="level-tabs">
-          {LEVEL_ORDER.map(level => (
+        <div className="stripe-tabs">
+          {STRIPE_ORDER.map(stripe => (
             <button
-              key={level}
-              className={`level-tab ${activeLevel === level ? 'active' : ''}`}
+              key={stripe}
+              className={`stripe-tab ${activeStripe === stripe ? 'active' : ''}`}
               style={{
-                '--level-color': LEVEL_COLORS[level],
-                '--level-text': LEVEL_TEXT_COLORS[level]
+                '--stripe-color': STRIPE_COLORS[stripe],
+                '--stripe-text': STRIPE_TEXT_COLORS[stripe]
               }}
-              onClick={() => setActiveLevel(level)}
+              onClick={() => setActiveStripe(stripe)}
             >
-              {LEVEL_NAMES[level]}
+              {stripe.charAt(0).toUpperCase() + stripe.slice(1)}
             </button>
           ))}
         </div>
@@ -568,11 +559,10 @@ function App() {
             onEditStudentName={editStudentName}
             onSelectStudent={selectStudent}
             calculateCompletion={calculateCompletion}
-            activeLevel={activeLevel}
-            levelColors={LEVEL_COLORS}
-            levelTextColors={LEVEL_TEXT_COLORS}
-            levelOrder={LEVEL_ORDER}
-            levelNames={LEVEL_NAMES}
+            activeStripe={activeStripe}
+            stripeColors={STRIPE_COLORS}
+            stripeTextColors={STRIPE_TEXT_COLORS}
+            stripeOrder={STRIPE_ORDER}
             sortBy={studentSortBy}
             onSortChange={(newSort) => { markLocalChange(); setStudentSortBy(newSort); }}
           />
@@ -583,21 +573,20 @@ function App() {
             student={students.find(s => s.id === selectedStudent.id) || selectedStudent}
             checklists={checklists}
             songs={songs}
-            activeLevel={activeLevel}
+            activeStripe={activeStripe}
             onToggleProgress={toggleProgress}
             onGraduate={graduateStudent}
             calculateCompletion={calculateCompletion}
-            levelColors={LEVEL_COLORS}
-            levelTextColors={LEVEL_TEXT_COLORS}
-            levelOrder={LEVEL_ORDER}
-            levelNames={LEVEL_NAMES}
+            stripeColors={STRIPE_COLORS}
+            stripeTextColors={STRIPE_TEXT_COLORS}
+            stripeOrder={STRIPE_ORDER}
           />
         )}
 
         {view === 'manage' && (
           <ChecklistManager
             checklists={checklists}
-            activeLevel={activeLevel}
+            activeStripe={activeStripe}
             onAddItem={addChecklistItem}
             onAddSubItem={addSubItem}
             onDeleteItem={deleteChecklistItem}
@@ -608,19 +597,16 @@ function App() {
             onUnlinkSong={unlinkSong}
             onAddSong={addSong}
             songs={songs}
-            levelColors={LEVEL_COLORS}
-            levelNames={LEVEL_NAMES}
+            stripeColors={STRIPE_COLORS}
           />
         )}
 
         {view === 'songs' && (
           <SongManager
             songs={songs}
-            checklists={checklists}
             onAddSong={addSong}
             onEditSong={editSong}
             onDeleteSong={deleteSong}
-            levelNames={LEVEL_NAMES}
           />
         )}
       </main>

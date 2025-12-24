@@ -2,7 +2,7 @@ import { useState } from 'react'
 
 function ChecklistManager({
   checklists,
-  activeLevel,
+  activeStripe,
   onAddItem,
   onAddSubItem,
   onDeleteItem,
@@ -13,8 +13,7 @@ function ChecklistManager({
   onUnlinkSong,
   onAddSong,
   songs,
-  levelColors,
-  levelNames
+  stripeColors
 }) {
   const [newItemText, setNewItemText] = useState('')
   const [addingSubItemTo, setAddingSubItemTo] = useState(null)
@@ -27,40 +26,20 @@ function ChecklistManager({
   const [songSearchTerm, setSongSearchTerm] = useState('')
   const [showCreateSong, setShowCreateSong] = useState(false)
   const [newSongArtist, setNewSongArtist] = useState('')
-  const [expandedSongs, setExpandedSongs] = useState(new Set()) // Track which items have songs expanded
 
-  // Toggle song visibility for a specific item/subitem
-  const toggleSongsExpanded = (itemId, subItemId = null) => {
-    const key = subItemId ? `${itemId}-${subItemId}` : itemId
-    setExpandedSongs(prev => {
-      const newSet = new Set(prev)
-      if (newSet.has(key)) {
-        newSet.delete(key)
-      } else {
-        newSet.add(key)
-      }
-      return newSet
-    })
-  }
-
-  const isSongsExpanded = (itemId, subItemId = null) => {
-    const key = subItemId ? `${itemId}-${subItemId}` : itemId
-    return expandedSongs.has(key)
-  }
-
-  const items = checklists[activeLevel] || []
+  const items = checklists[activeStripe] || []
 
   const handleAddItem = (e) => {
     e.preventDefault()
     if (newItemText.trim()) {
-      onAddItem(activeLevel, newItemText.trim())
+      onAddItem(activeStripe, newItemText.trim())
       setNewItemText('')
     }
   }
 
   const handleAddSubItem = (itemId) => {
     if (newSubItemText.trim()) {
-      onAddSubItem(activeLevel, itemId, newSubItemText.trim())
+      onAddSubItem(activeStripe, itemId, newSubItemText.trim())
       setNewSubItemText('')
       setAddingSubItemTo(null)
     }
@@ -82,7 +61,7 @@ function ChecklistManager({
 
   const handleLinkSong = (songId) => {
     if (linkingSongTo) {
-      onLinkSong(activeLevel, linkingSongTo.itemId, linkingSongTo.subItemId, songId)
+      onLinkSong(activeStripe, linkingSongTo.itemId, linkingSongTo.subItemId, songId)
       setLinkingSongTo(null)
       setSongSearchTerm('')
       setShowCreateSong(false)
@@ -91,7 +70,7 @@ function ChecklistManager({
   }
 
   const handleUnlinkSong = (itemId, subItemId, songId) => {
-    onUnlinkSong(activeLevel, itemId, subItemId, songId)
+    onUnlinkSong(activeStripe, itemId, subItemId, songId)
   }
 
   const handleCreateAndLinkSong = () => {
@@ -100,7 +79,7 @@ function ChecklistManager({
       const newSongId = onAddSong(newSongArtist.trim(), songSearchTerm.trim())
       // Link it immediately
       if (newSongId) {
-        onLinkSong(activeLevel, linkingSongTo.itemId, linkingSongTo.subItemId, newSongId)
+        onLinkSong(activeStripe, linkingSongTo.itemId, linkingSongTo.subItemId, newSongId)
       }
       // Reset state
       setLinkingSongTo(null)
@@ -140,7 +119,7 @@ function ChecklistManager({
     if (draggedItem === null || draggedSubItem !== null) return
     
     if (draggedItem !== toIndex) {
-      onReorderItems(activeLevel, draggedItem, toIndex)
+      onReorderItems(activeStripe, draggedItem, toIndex)
     }
     setDraggedItem(null)
     setDragOverIndex(null)
@@ -173,52 +152,37 @@ function ChecklistManager({
     if (!draggedSubItem || draggedSubItem.itemId !== itemId) return
     
     if (draggedSubItem.subIndex !== toIndex) {
-      onReorderSubItems(activeLevel, itemId, draggedSubItem.subIndex, toIndex)
+      onReorderSubItems(activeStripe, itemId, draggedSubItem.subIndex, toIndex)
     }
     setDraggedSubItem(null)
     setDragOverSubIndex(null)
   }
 
-  const renderLinkedSongsSection = (itemId, subItemId = null) => {
+  const renderLinkedSongs = (itemId, subItemId = null) => {
     const linkedSongIds = getLinkedSongs(itemId, subItemId)
     if (linkedSongIds.length === 0) return null
 
-    const isExpanded = isSongsExpanded(itemId, subItemId)
-
     return (
-      <div className={`related-songs-section ${subItemId ? 'sub-item-songs' : ''}`}>
-        <button 
-          className="related-songs-toggle"
-          onClick={() => toggleSongsExpanded(itemId, subItemId)}
-        >
-          <span className={`toggle-arrow ${isExpanded ? 'expanded' : ''}`}>▶</span>
-          <span className="related-songs-label">Related Songs</span>
-          <span className="song-count-badge">{linkedSongIds.length}</span>
-        </button>
-        
-        {isExpanded && (
-          <div className="linked-songs">
-            {linkedSongIds.map(songId => {
-              const song = getSongById(songId)
-              if (!song) return null
-              return (
-                <div key={songId} className="linked-song-tag">
-                  <span className="song-tag-icon">🎵</span>
-                  <span className="song-tag-text">
-                    {song.artist ? `${song.artist} - ` : ''}{song.title}
-                  </span>
-                  <button
-                    className="unlink-song-btn"
-                    onClick={() => handleUnlinkSong(itemId, subItemId, songId)}
-                    title="Remove song"
-                  >
-                    ×
-                  </button>
-                </div>
-              )
-            })}
-          </div>
-        )}
+      <div className="linked-songs">
+        {linkedSongIds.map(songId => {
+          const song = getSongById(songId)
+          if (!song) return null
+          return (
+            <div key={songId} className="linked-song-tag">
+              <span className="song-tag-icon">🎵</span>
+              <span className="song-tag-text">
+                {song.artist ? `${song.artist} - ` : ''}{song.title}
+              </span>
+              <button
+                className="unlink-song-btn"
+                onClick={() => handleUnlinkSong(itemId, subItemId, songId)}
+                title="Remove song"
+              >
+                ×
+              </button>
+            </div>
+          )
+        })}
       </div>
     )
   }
@@ -231,6 +195,7 @@ function ChecklistManager({
     const linkedSongIds = getLinkedSongs(itemId, subItemId)
     const availableSongs = filteredSongs.filter(s => !linkedSongIds.includes(s.id))
     const hasSearchTerm = songSearchTerm.trim().length > 0
+    const noResults = availableSongs.length === 0 && hasSearchTerm
 
     return (
       <div className="song-link-dropdown">
@@ -332,9 +297,9 @@ function ChecklistManager({
     <div className="checklist-manager">
       <div className="manager-header">
         <h2>
-          Manage <span style={{ color: levelColors[activeLevel] }}>
-            {levelNames[activeLevel]}
-          </span> Checklist
+          Manage <span style={{ color: stripeColors[activeStripe] }}>
+            {activeStripe.charAt(0).toUpperCase() + activeStripe.slice(1)}
+          </span> Stripe Checklist
         </h2>
         <p className="manager-hint">
           Items added here will appear in all students' checklists • Drag items to reorder • Link songs with 🎵
@@ -352,7 +317,7 @@ function ChecklistManager({
         <button 
           type="submit" 
           className="add-btn"
-          style={{ backgroundColor: levelColors[activeLevel] }}
+          style={{ backgroundColor: stripeColors[activeStripe] }}
         >
           <span>+</span> Add Item
         </button>
@@ -362,7 +327,7 @@ function ChecklistManager({
         <div className="empty-state">
           <span className="empty-icon">📝</span>
           <p>No items in this checklist yet.</p>
-          <p className="hint">Add items above to create requirements for this level.</p>
+          <p className="hint">Add items above to create requirements for this stripe level.</p>
         </div>
       ) : (
         <div className="items-list">
@@ -413,7 +378,7 @@ function ChecklistManager({
                     className="action-btn delete"
                     onClick={() => {
                       if (confirm('Delete this item and all its sub-items?')) {
-                        onDeleteItem(activeLevel, item.id)
+                        onDeleteItem(activeStripe, item.id)
                       }
                     }}
                     title="Delete item"
@@ -423,7 +388,7 @@ function ChecklistManager({
                 </div>
               </div>
 
-              {renderLinkedSongsSection(item.id)}
+              {renderLinkedSongs(item.id)}
               {renderSongLinkDropdown(item.id)}
 
               {item.subItems && item.subItems.length > 0 && (
@@ -464,7 +429,7 @@ function ChecklistManager({
                           className="action-btn delete small"
                           onClick={() => {
                             if (confirm('Delete this sub-item?')) {
-                              onDeleteSubItem(activeLevel, item.id, subItem.id)
+                              onDeleteSubItem(activeStripe, item.id, subItem.id)
                             }
                           }}
                           title="Delete sub-item"
@@ -472,7 +437,7 @@ function ChecklistManager({
                           ×
                         </button>
                       </div>
-                      {renderLinkedSongsSection(item.id, subItem.id)}
+                      {renderLinkedSongs(item.id, subItem.id)}
                       {renderSongLinkDropdown(item.id, subItem.id)}
                     </div>
                   ))}
@@ -502,7 +467,7 @@ function ChecklistManager({
                   <button
                     className="add-sub-btn"
                     onClick={() => handleAddSubItem(item.id)}
-                    style={{ backgroundColor: levelColors[activeLevel] }}
+                    style={{ backgroundColor: stripeColors[activeStripe] }}
                   >
                     Add
                   </button>

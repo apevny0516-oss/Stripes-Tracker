@@ -7,10 +7,11 @@ function StudentList({
   onEditStudentName,
   onSelectStudent,
   calculateCompletion,
-  activeStripe,
-  stripeColors,
-  stripeTextColors,
-  stripeOrder,
+  activeLevel,
+  levelColors,
+  levelTextColors,
+  levelOrder,
+  levelNames,
   sortBy,
   onSortChange
 }) {
@@ -56,7 +57,7 @@ function StudentList({
     }
   }
 
-  const getStripeIndex = (stripe) => stripeOrder.indexOf(stripe)
+  const getLevelIndex = (level) => levelOrder.indexOf(level)
 
   const sortedAndFilteredStudents = useMemo(() => {
     let filtered = students.filter(student =>
@@ -69,27 +70,27 @@ function StudentList({
           return a.name.localeCompare(b.name)
         case 'name-desc':
           return b.name.localeCompare(a.name)
-        case 'stripe-desc': {
-          const aStripeIdx = getStripeIndex(a.currentStripe)
-          const bStripeIdx = getStripeIndex(b.currentStripe)
-          if (aStripeIdx !== bStripeIdx) {
-            return bStripeIdx - aStripeIdx
+        case 'level-desc': {
+          const aLevelIdx = getLevelIndex(a.currentLevel)
+          const bLevelIdx = getLevelIndex(b.currentLevel)
+          if (aLevelIdx !== bLevelIdx) {
+            return bLevelIdx - aLevelIdx
           }
-          return calculateCompletion(b, b.currentStripe) - calculateCompletion(a, a.currentStripe)
+          return calculateCompletion(b, b.currentLevel) - calculateCompletion(a, a.currentLevel)
         }
-        case 'stripe-asc': {
-          const aStripeIdx = getStripeIndex(a.currentStripe)
-          const bStripeIdx = getStripeIndex(b.currentStripe)
-          if (aStripeIdx !== bStripeIdx) {
-            return aStripeIdx - bStripeIdx
+        case 'level-asc': {
+          const aLevelIdx = getLevelIndex(a.currentLevel)
+          const bLevelIdx = getLevelIndex(b.currentLevel)
+          if (aLevelIdx !== bLevelIdx) {
+            return aLevelIdx - bLevelIdx
           }
-          return calculateCompletion(a, a.currentStripe) - calculateCompletion(b, b.currentStripe)
+          return calculateCompletion(a, a.currentLevel) - calculateCompletion(b, b.currentLevel)
         }
         default:
           return 0
       }
     })
-  }, [students, searchTerm, sortBy, stripeOrder, calculateCompletion])
+  }, [students, searchTerm, sortBy, levelOrder, calculateCompletion])
 
   return (
     <div className="student-list-container">
@@ -131,8 +132,8 @@ function StudentList({
           >
             <option value="name-asc">Name (A → Z)</option>
             <option value="name-desc">Name (Z → A)</option>
-            <option value="stripe-desc">Stripe (Highest first)</option>
-            <option value="stripe-asc">Stripe (Lowest first)</option>
+            <option value="level-desc">Level (Highest first)</option>
+            <option value="level-asc">Level (Lowest first)</option>
           </select>
         </div>
       </div>
@@ -145,7 +146,7 @@ function StudentList({
           </div>
         ) : (
           sortedAndFilteredStudents.map(student => {
-            const completion = calculateCompletion(student, student.currentStripe)
+            const completion = calculateCompletion(student, student.currentLevel)
             const isEditing = editingId === student.id
             
             return (
@@ -156,13 +157,13 @@ function StudentList({
               >
                 <div className="student-card-header">
                   <div 
-                    className="stripe-badge"
+                    className="level-badge"
                     style={{
-                      backgroundColor: stripeColors[student.currentStripe],
-                      color: stripeTextColors[student.currentStripe]
+                      backgroundColor: levelColors[student.currentLevel],
+                      color: levelTextColors[student.currentLevel]
                     }}
                   >
-                    {student.currentStripe}
+                    {levelNames[student.currentLevel]}
                   </div>
                   <div className="card-actions">
                     {!isEditing && (
@@ -214,25 +215,24 @@ function StudentList({
                       className="progress-bar"
                       style={{
                         width: `${completion}%`,
-                        backgroundColor: stripeColors[student.currentStripe]
+                        backgroundColor: levelColors[student.currentLevel]
                       }}
                     />
                   </div>
                   <span className="progress-text">{completion}% complete</span>
                 </div>
 
-                <div className="stripe-progress-dots">
-                  {stripeOrder.map((stripe, idx) => (
+                <div className="level-progress-dots">
+                  {levelOrder.map((level, idx) => (
                     <div
-                      key={stripe}
-                      className={`stripe-dot ${getStripeIndex(student.currentStripe) >= idx ? 'achieved' : ''}`}
+                      key={level}
+                      className={`level-dot ${getLevelIndex(student.currentLevel) >= idx ? 'achieved' : ''}`}
                       style={{
-                        backgroundColor: getStripeIndex(student.currentStripe) >= idx 
-                          ? stripeColors[stripe] 
-                          : '#e9ecef',
-                        border: stripe === 'white' ? '1px solid #dee2e6' : 'none'
+                        backgroundColor: getLevelIndex(student.currentLevel) >= idx 
+                          ? levelColors[level] 
+                          : '#e9ecef'
                       }}
-                      title={stripe}
+                      title={levelNames[level]}
                     />
                   ))}
                 </div>

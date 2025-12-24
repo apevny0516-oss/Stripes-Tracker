@@ -2,19 +2,20 @@ function StudentProgress({
   student,
   checklists,
   songs,
-  activeStripe,
+  activeLevel,
   onToggleProgress,
   onGraduate,
   calculateCompletion,
-  stripeColors,
-  stripeTextColors,
-  stripeOrder
+  levelColors,
+  levelTextColors,
+  levelOrder,
+  levelNames
 }) {
-  const items = checklists[activeStripe] || []
-  const completion = calculateCompletion(student, activeStripe)
-  const currentStripeIndex = stripeOrder.indexOf(student.currentStripe)
-  const activeStripeIndex = stripeOrder.indexOf(activeStripe)
-  const canGraduate = completion === 100 && activeStripe === student.currentStripe && currentStripeIndex < stripeOrder.length - 1
+  const items = checklists[activeLevel] || []
+  const completion = calculateCompletion(student, activeLevel)
+  const currentLevelIndex = levelOrder.indexOf(student.currentLevel)
+  const activeLevelIndex = levelOrder.indexOf(activeLevel)
+  const canGraduate = completion === 100 && activeLevel === student.currentLevel && currentLevelIndex < levelOrder.length - 1
 
   const getSongById = (songId) => songs?.find(s => s.id === songId)
 
@@ -42,44 +43,45 @@ function StudentProgress({
         <div className="student-info">
           <h2>{student.name}</h2>
           <div 
-            className="current-stripe-badge"
+            className="current-level-badge"
             style={{
-              backgroundColor: stripeColors[student.currentStripe],
-              color: stripeTextColors[student.currentStripe]
+              backgroundColor: levelColors[student.currentLevel],
+              color: levelTextColors[student.currentLevel]
             }}
           >
-            Current: {student.currentStripe} stripe
+            Current: {levelNames[student.currentLevel]}
           </div>
         </div>
 
-        <div className="stripe-journey">
-          {stripeOrder.map((stripe, idx) => (
-            <div key={stripe} className="journey-step">
+        <div className="level-journey">
+          {levelOrder.map((level, idx) => (
+            <div key={level} className="journey-step">
               <div
-                className={`journey-dot ${currentStripeIndex >= idx ? 'achieved' : ''} ${stripe === activeStripe ? 'viewing' : ''}`}
+                className={`journey-dot ${currentLevelIndex >= idx ? 'achieved' : ''} ${level === activeLevel ? 'viewing' : ''}`}
                 style={{
-                  backgroundColor: currentStripeIndex >= idx ? stripeColors[stripe] : '#e9ecef',
-                  border: stripe === 'white' ? '2px solid #dee2e6' : stripe === activeStripe ? `3px solid ${stripeColors[stripe]}` : 'none',
-                  boxShadow: stripe === activeStripe ? `0 0 0 3px ${stripeColors[stripe]}33` : 'none'
+                  backgroundColor: currentLevelIndex >= idx ? levelColors[level] : '#e9ecef',
+                  border: level === activeLevel ? `3px solid ${levelColors[level]}` : 'none',
+                  boxShadow: level === activeLevel ? `0 0 0 3px ${levelColors[level]}33` : 'none'
                 }}
+                title={levelNames[level]}
               />
-              {idx < stripeOrder.length - 1 && (
-                <div className={`journey-line ${currentStripeIndex > idx ? 'achieved' : ''}`} />
+              {idx < levelOrder.length - 1 && (
+                <div className={`journey-line ${currentLevelIndex > idx ? 'achieved' : ''}`} />
               )}
             </div>
           ))}
         </div>
       </div>
 
-      <div className="viewing-stripe-header">
-        <h3 style={{ color: stripeColors[activeStripe] }}>
-          {activeStripe.charAt(0).toUpperCase() + activeStripe.slice(1)} Stripe Checklist
+      <div className="viewing-level-header">
+        <h3 style={{ color: levelColors[activeLevel] }}>
+          {levelNames[activeLevel]} Checklist
         </h3>
         <div className="completion-badge">
           <div 
             className="completion-ring"
             style={{
-              background: `conic-gradient(${stripeColors[activeStripe]} ${completion * 3.6}deg, #e9ecef ${completion * 3.6}deg)`
+              background: `conic-gradient(${levelColors[activeLevel]} ${completion * 3.6}deg, #e9ecef ${completion * 3.6}deg)`
             }}
           >
             <div className="completion-inner">
@@ -92,26 +94,26 @@ function StudentProgress({
       {items.length === 0 ? (
         <div className="empty-checklist">
           <span className="empty-icon">📋</span>
-          <p>No checklist items for {activeStripe} stripe yet.</p>
+          <p>No checklist items for {levelNames[activeLevel]} yet.</p>
           <p className="hint">Go to "Manage Checklists" to add items.</p>
         </div>
       ) : (
         <div className="checklist">
           {items.map(item => {
-            const isChecked = student.progress[activeStripe]?.[item.id] || false
+            const isChecked = student.progress[activeLevel]?.[item.id] || false
             const hasSubItems = item.subItems && item.subItems.length > 0
             
             return (
               <div key={item.id} className="checklist-item-group">
                 <div 
                   className={`checklist-item ${isChecked ? 'checked' : ''}`}
-                  onClick={() => onToggleProgress(student.id, activeStripe, item.id)}
+                  onClick={() => onToggleProgress(student.id, activeLevel, item.id)}
                 >
                   <div 
                     className="checkbox"
                     style={{
-                      borderColor: isChecked ? stripeColors[activeStripe] : '#ced4da',
-                      backgroundColor: isChecked ? stripeColors[activeStripe] : 'transparent'
+                      borderColor: isChecked ? levelColors[activeLevel] : '#ced4da',
+                      backgroundColor: isChecked ? levelColors[activeLevel] : 'transparent'
                     }}
                   >
                     {isChecked && <span className="checkmark">✓</span>}
@@ -125,18 +127,18 @@ function StudentProgress({
                 {hasSubItems && (
                   <div className="sub-items">
                     {item.subItems.map(subItem => {
-                      const subChecked = student.progress[activeStripe]?.[subItem.id] || false
+                      const subChecked = student.progress[activeLevel]?.[subItem.id] || false
                       return (
                         <div
                           key={subItem.id}
                           className={`checklist-item sub-item ${subChecked ? 'checked' : ''}`}
-                          onClick={() => onToggleProgress(student.id, activeStripe, subItem.id)}
+                          onClick={() => onToggleProgress(student.id, activeLevel, subItem.id)}
                         >
                           <div 
                             className="checkbox small"
                             style={{
-                              borderColor: subChecked ? stripeColors[activeStripe] : '#ced4da',
-                              backgroundColor: subChecked ? stripeColors[activeStripe] : 'transparent'
+                              borderColor: subChecked ? levelColors[activeLevel] : '#ced4da',
+                              backgroundColor: subChecked ? levelColors[activeLevel] : 'transparent'
                             }}
                           >
                             {subChecked && <span className="checkmark">✓</span>}
@@ -159,25 +161,25 @@ function StudentProgress({
       {canGraduate && (
         <div className="graduate-section">
           <div className="graduate-message">
-            🎉 {student.name} has completed all requirements for {student.currentStripe} stripe!
+            🎉 {student.name} has completed all requirements for {levelNames[student.currentLevel]}!
           </div>
           <button
             className="graduate-btn"
             onClick={() => onGraduate(student.id)}
             style={{
-              backgroundColor: stripeColors[stripeOrder[currentStripeIndex + 1]],
-              color: stripeTextColors[stripeOrder[currentStripeIndex + 1]]
+              backgroundColor: levelColors[levelOrder[currentLevelIndex + 1]],
+              color: levelTextColors[levelOrder[currentLevelIndex + 1]]
             }}
           >
-            Graduate to {stripeOrder[currentStripeIndex + 1]} stripe →
+            Advance to {levelNames[levelOrder[currentLevelIndex + 1]]} →
           </button>
         </div>
       )}
 
-      {currentStripeIndex === stripeOrder.length - 1 && completion === 100 && activeStripe === student.currentStripe && (
+      {currentLevelIndex === levelOrder.length - 1 && completion === 100 && activeLevel === student.currentLevel && (
         <div className="graduate-section master">
           <div className="graduate-message">
-            🏆 {student.name} has achieved the highest stripe level! Congratulations!
+            🏆 {student.name} has achieved the highest level! Congratulations!
           </div>
         </div>
       )}

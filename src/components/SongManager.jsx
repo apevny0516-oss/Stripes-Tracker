@@ -1,12 +1,12 @@
 import { useState } from 'react'
 
-const STRIPE_COLORS = {
-  white: '#f8f9fa',
-  yellow: '#ffd43b',
-  red: '#fa5252',
-  green: '#51cf66',
-  blue: '#339af0',
-  purple: '#9775fa'
+const LEVEL_COLORS = {
+  level1: '#64748b',
+  level2: '#f59e0b',
+  level3: '#ef4444',
+  level4: '#22c55e',
+  level5: '#3b82f6',
+  level6: '#8b5cf6'
 }
 
 function SongManager({
@@ -14,7 +14,8 @@ function SongManager({
   checklists,
   onAddSong,
   onEditSong,
-  onDeleteSong
+  onDeleteSong,
+  levelNames
 }) {
   const [newArtist, setNewArtist] = useState('')
   const [newTitle, setNewTitle] = useState('')
@@ -30,12 +31,12 @@ function SongManager({
     
     if (!checklists) return linkedConcepts
     
-    Object.entries(checklists).forEach(([stripe, items]) => {
+    Object.entries(checklists).forEach(([level, items]) => {
       items.forEach(item => {
         // Check if song is linked to main item
         if (item.linkedSongs?.includes(songId)) {
           linkedConcepts.push({
-            stripe,
+            level,
             text: item.text,
             isSubItem: false
           })
@@ -44,7 +45,7 @@ function SongManager({
         item.subItems?.forEach(subItem => {
           if (subItem.linkedSongs?.includes(songId)) {
             linkedConcepts.push({
-              stripe,
+              level,
               text: subItem.text,
               parentText: item.text,
               isSubItem: true
@@ -237,27 +238,27 @@ function SongManager({
                   )
                 }
 
-                // Group by stripe
-                const groupedByStripe = linkedConcepts.reduce((acc, concept) => {
-                  if (!acc[concept.stripe]) acc[concept.stripe] = []
-                  acc[concept.stripe].push(concept)
+                // Group by level
+                const groupedByLevel = linkedConcepts.reduce((acc, concept) => {
+                  if (!acc[concept.level]) acc[concept.level] = []
+                  acc[concept.level].push(concept)
                   return acc
                 }, {})
 
                 return (
                   <div className="linked-concepts-list">
-                    {Object.entries(groupedByStripe).map(([stripe, concepts]) => (
-                      <div key={stripe} className="stripe-concept-group">
+                    {Object.entries(groupedByLevel).map(([level, concepts]) => (
+                      <div key={level} className="level-concept-group">
                         <div 
-                          className="stripe-concept-header"
+                          className="level-concept-header"
                           style={{ 
-                            backgroundColor: STRIPE_COLORS[stripe],
-                            color: ['white', 'yellow'].includes(stripe) ? '#212529' : '#ffffff'
+                            backgroundColor: LEVEL_COLORS[level],
+                            color: '#ffffff'
                           }}
                         >
-                          {stripe.charAt(0).toUpperCase() + stripe.slice(1)} Stripe
+                          {levelNames?.[level] || level}
                         </div>
-                        <div className="stripe-concept-items">
+                        <div className="level-concept-items">
                           {concepts.map((concept, idx) => (
                             <div key={idx} className="concept-item">
                               {concept.isSubItem ? (
@@ -292,5 +293,3 @@ function SongManager({
 }
 
 export default SongManager
-
-
