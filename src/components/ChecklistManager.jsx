@@ -446,7 +446,10 @@ function ChecklistManager({
                             <div className="level-item-actions">
                               <button
                                 className={`action-btn-mini edit ${item.lessonContent ? 'has-content' : ''}`}
-                                onClick={() => setEditingLesson({ level, item, subItem: null })}
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setEditingLesson({ level, item: { ...item }, subItem: null })
+                                }}
                                 title="Edit lesson content"
                               >
                                 📝
@@ -528,7 +531,10 @@ function ChecklistManager({
                                   <div className="level-sub-actions">
                                     <button
                                       className={`action-btn-mini edit ${subItem.lessonContent ? 'has-content' : ''}`}
-                                      onClick={() => setEditingLesson({ level, item, subItem })}
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        setEditingLesson({ level, item: { ...item }, subItem: { ...subItem } })
+                                      }}
                                       title="Edit lesson content"
                                     >
                                       📝
@@ -605,7 +611,7 @@ function ChecklistManager({
         })}
       </div>
 
-      {editingLesson && (
+      {editingLesson && editingLesson.item && (
         <LessonEditor
           item={editingLesson.item}
           subItem={editingLesson.subItem}

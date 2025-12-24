@@ -18,9 +18,16 @@ function LessonEditor({
   const isSubItem = !!subItem
 
   useEffect(() => {
-    setContent(editingItem?.lessonContent || '')
-    setHasChanges(false)
+    if (editingItem) {
+      setContent(editingItem.lessonContent || '')
+      setHasChanges(false)
+    }
   }, [editingItem])
+
+  // Safety check - if no item, don't render
+  if (!item) {
+    return null
+  }
 
   const handleContentChange = (e) => {
     const value = e.target.value
