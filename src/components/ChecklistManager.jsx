@@ -27,6 +27,12 @@ function ChecklistManager({
   const [showCreateSong, setShowCreateSong] = useState(false)
   const [newSongArtist, setNewSongArtist] = useState('')
   const [expandedSongs, setExpandedSongs] = useState(new Set())
+  
+  // Drag state for reordering
+  const [draggedItem, setDraggedItem] = useState(null) // { level, index }
+  const [dragOverItem, setDragOverItem] = useState(null) // { level, index }
+  const [draggedSubItem, setDraggedSubItem] = useState(null) // { level, itemId, subIndex }
+  const [dragOverSubItem, setDragOverSubItem] = useState(null) // { level, itemId, subIndex }
 
   const toggleLevelCollapsed = (level) => {
     setCollapsedLevels(prev => {
@@ -121,6 +127,70 @@ function ChecklistManager({
       onMoveItem(movingItem.level, movingItem.itemId, toLevel)
     }
     setMovingItem(null)
+  }
+
+  // Drag handlers for main items
+  const handleDragStart = (e, level, index) => {
+    setDraggedItem({ level, index })
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('text/plain', index)
+    e.target.classList.add('dragging')
+  }
+
+  const handleDragEnd = (e) => {
+    e.target.classList.remove('dragging')
+    setDraggedItem(null)
+    setDragOverItem(null)
+  }
+
+  const handleDragOver = (e, level, index) => {
+    e.preventDefault()
+    if (!draggedItem || draggedItem.level !== level || draggedSubItem) return
+    setDragOverItem({ level, index })
+  }
+
+  const handleDrop = (e, level, toIndex) => {
+    e.preventDefault()
+    if (!draggedItem || draggedItem.level !== level || draggedSubItem) return
+    
+    if (draggedItem.index !== toIndex) {
+      onReorderItems(level, draggedItem.index, toIndex)
+    }
+    setDraggedItem(null)
+    setDragOverItem(null)
+  }
+
+  // Drag handlers for sub-items
+  const handleSubDragStart = (e, level, itemId, subIndex) => {
+    e.stopPropagation()
+    setDraggedSubItem({ level, itemId, subIndex })
+    e.dataTransfer.effectAllowed = 'move'
+    e.target.classList.add('dragging')
+  }
+
+  const handleSubDragEnd = (e) => {
+    e.target.classList.remove('dragging')
+    setDraggedSubItem(null)
+    setDragOverSubItem(null)
+  }
+
+  const handleSubDragOver = (e, level, itemId, subIndex) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!draggedSubItem || draggedSubItem.level !== level || draggedSubItem.itemId !== itemId) return
+    setDragOverSubItem({ level, itemId, subIndex })
+  }
+
+  const handleSubDrop = (e, level, itemId, toIndex) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!draggedSubItem || draggedSubItem.level !== level || draggedSubItem.itemId !== itemId) return
+    
+    if (draggedSubItem.subIndex !== toIndex) {
+      onReorderSubItems(level, itemId, draggedSubItem.subIndex, toIndex)
+    }
+    setDraggedSubItem(null)
+    setDragOverSubItem(null)
   }
 
   const filteredSongs = songs.filter(song =>
@@ -355,8 +425,17 @@ function ChecklistManager({
                   ) : (
                     <div className="level-items-list">
                       {items.map((item, index) => (
-                        <div key={item.id} className="level-manager-item">
+                        <div 
+                          key={item.id} 
+                          className={`level-manager-item ${dragOverItem?.level === level && dragOverItem?.index === index ? 'drag-over' : ''} ${draggedItem?.level === level && draggedItem?.index === index ? 'dragging' : ''}`}
+                          draggable
+                          onDragStart={(e) => handleDragStart(e, level, index)}
+                          onDragEnd={handleDragEnd}
+                          onDragOver={(e) => handleDragOver(e, level, index)}
+                          onDrop={(e) => handleDrop(e, level, index)}
+                        >
                           <div className="level-item-header">
+                            <div className="level-drag-handle" title="Drag to reorder">⋮⋮</div>
                             <span className="level-item-number">{index + 1}</span>
                             <span className="level-item-text">{item.text}</span>
                             <div className="level-item-actions">
@@ -422,7 +501,16 @@ function ChecklistManager({
                           {item.subItems && item.subItems.length > 0 && (
                             <div className="level-sub-items">
                               {item.subItems.map((subItem, subIndex) => (
-                                <div key={subItem.id} className="level-sub-item">
+                                <div 
+                                  key={subItem.id} 
+                                  className={`level-sub-item ${dragOverSubItem?.level === level && dragOverSubItem?.itemId === item.id && dragOverSubItem?.subIndex === subIndex ? 'drag-over' : ''} ${draggedSubItem?.level === level && draggedSubItem?.itemId === item.id && draggedSubItem?.subIndex === subIndex ? 'dragging' : ''}`}
+                                  draggable
+                                  onDragStart={(e) => handleSubDragStart(e, level, item.id, subIndex)}
+                                  onDragEnd={handleSubDragEnd}
+                                  onDragOver={(e) => handleSubDragOver(e, level, item.id, subIndex)}
+                                  onDrop={(e) => handleSubDrop(e, level, item.id, subIndex)}
+                                >
+                                  <div className="level-sub-drag-handle" title="Drag to reorder">⋮</div>
                                   <span className="sub-bullet">•</span>
                                   <span className="level-sub-text">{subItem.text}</span>
                                   <div className="level-sub-actions">
