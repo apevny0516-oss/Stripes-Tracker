@@ -1,6 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
-import ReactQuill from 'react-quill'
-import 'react-quill/dist/quill.snow.css'
+import { useState, useEffect, useRef } from 'react'
 
 function LessonEditor({ 
   item, 
@@ -12,6 +10,8 @@ function LessonEditor({
 }) {
   const [content, setContent] = useState('')
   const [hasChanges, setHasChanges] = useState(false)
+  const [viewMode, setViewMode] = useState('edit') // 'edit' or 'preview'
+  const textareaRef = useRef(null)
 
   // Get the current item being edited (either main item or sub-item)
   const editingItem = subItem || item
@@ -22,7 +22,8 @@ function LessonEditor({
     setHasChanges(false)
   }, [editingItem])
 
-  const handleContentChange = (value) => {
+  const handleContentChange = (e) => {
+    const value = e.target.value
     setContent(value)
     setHasChanges(value !== (editingItem?.lessonContent || ''))
   }
@@ -42,33 +43,39 @@ function LessonEditor({
     }
   }
 
-  // Quill editor configuration
-  const modules = useMemo(() => ({
-    toolbar: [
-      [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
-      [{ 'font': [] }],
-      ['bold', 'italic', 'underline', 'strike'],
-      [{ 'color': [] }, { 'background': [] }],
-      [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-      [{ 'indent': '-1'}, { 'indent': '+1' }],
-      [{ 'align': [] }],
-      ['blockquote', 'code-block'],
-      ['link', 'image', 'video'],
-      ['clean']
-    ],
-    clipboard: {
-      matchVisual: false
-    }
-  }), [])
+  // Helper functions for inserting formatting
+  const insertFormatting = (before, after = '') => {
+    const textarea = textareaRef.current
+    if (!textarea) return
+    
+    const start = textarea.selectionStart
+    const end = textarea.selectionEnd
+    const selectedText = content.substring(start, end)
+    const newText = content.substring(0, start) + before + selectedText + after + content.substring(end)
+    
+    setContent(newText)
+    setHasChanges(true)
+    
+    // Reset cursor position
+    setTimeout(() => {
+      textarea.focus()
+      textarea.setSelectionRange(start + before.length, start + before.length + selectedText.length)
+    }, 0)
+  }
 
-  const formats = [
-    'header', 'font',
-    'bold', 'italic', 'underline', 'strike',
-    'color', 'background',
-    'list', 'bullet', 'indent',
-    'align',
-    'blockquote', 'code-block',
-    'link', 'image', 'video'
+  const toolbarButtons = [
+    { label: 'H1', action: () => insertFormatting('<h1>', '</h1>'), title: 'Heading 1' },
+    { label: 'H2', action: () => insertFormatting('<h2>', '</h2>'), title: 'Heading 2' },
+    { label: 'H3', action: () => insertFormatting('<h3>', '</h3>'), title: 'Heading 3' },
+    { label: 'B', action: () => insertFormatting('<strong>', '</strong>'), title: 'Bold', style: { fontWeight: 'bold' } },
+    { label: 'I', action: () => insertFormatting('<em>', '</em>'), title: 'Italic', style: { fontStyle: 'italic' } },
+    { label: 'U', action: () => insertFormatting('<u>', '</u>'), title: 'Underline', style: { textDecoration: 'underline' } },
+    { label: '•', action: () => insertFormatting('<ul>\n  <li>', '</li>\n</ul>'), title: 'Bullet List' },
+    { label: '1.', action: () => insertFormatting('<ol>\n  <li>', '</li>\n</ol>'), title: 'Numbered List' },
+    { label: '❝', action: () => insertFormatting('<blockquote>', '</blockquote>'), title: 'Quote' },
+    { label: '🔗', action: () => insertFormatting('<a href="">', '</a>'), title: 'Link' },
+    { label: '🖼️', action: () => insertFormatting('<img src="', '" alt="image" />'), title: 'Image' },
+    { label: '▶️', action: () => insertFormatting('<iframe src="', '" width="560" height="315"></iframe>'), title: 'Video Embed' },
   ]
 
   return (
@@ -92,26 +99,65 @@ function LessonEditor({
           <button className="lesson-close-btn" onClick={handleClose}>×</button>
         </div>
 
-        <div className="lesson-editor-toolbar-hint">
-          <span>📝</span> Create your lesson content below. Use the toolbar to format text, add images, embed videos, and more.
+        <div className="lesson-editor-toolbar">
+          <div className="toolbar-buttons">
+            {toolbarButtons.map((btn, idx) => (
+              <button
+                key={idx}
+                className="toolbar-btn"
+                onClick={btn.action}
+                title={btn.title}
+                style={btn.style}
+                type="button"
+              >
+                {btn.label}
+              </button>
+            ))}
+          </div>
+          <div className="view-toggle">
+            <button 
+              className={`view-btn ${viewMode === 'edit' ? 'active' : ''}`}
+              onClick={() => setViewMode('edit')}
+              type="button"
+            >
+              Edit
+            </button>
+            <button 
+              className={`view-btn ${viewMode === 'preview' ? 'active' : ''}`}
+              onClick={() => setViewMode('preview')}
+              type="button"
+            >
+              Preview
+            </button>
+          </div>
         </div>
 
         <div className="lesson-editor-content">
-          <ReactQuill
-            theme="snow"
-            value={content}
-            onChange={handleContentChange}
-            modules={modules}
-            formats={formats}
-            placeholder="Start writing your lesson content here...
+          {viewMode === 'edit' ? (
+            <textarea
+              ref={textareaRef}
+              className="lesson-textarea"
+              value={content}
+              onChange={handleContentChange}
+              placeholder="Start writing your lesson content here...
 
-You can include:
-• Detailed explanations of the concept
-• Step-by-step instructions
-• Tips and common mistakes to avoid
-• Practice exercises
-• Related concepts to review"
-          />
+You can use HTML tags for formatting:
+• <h1>, <h2>, <h3> for headings
+• <strong> or <b> for bold
+• <em> or <i> for italic
+• <ul> and <li> for bullet lists
+• <ol> and <li> for numbered lists
+• <a href='url'>text</a> for links
+• <img src='url' /> for images
+
+Use the toolbar buttons above to insert formatting."
+            />
+          ) : (
+            <div 
+              className="lesson-preview"
+              dangerouslySetInnerHTML={{ __html: content || '<p style="color: #6b7280; font-style: italic;">No content yet. Switch to Edit mode to add content.</p>' }}
+            />
+          )}
         </div>
 
         <div className="lesson-editor-footer">
@@ -123,7 +169,7 @@ You can include:
             )}
           </div>
           <div className="lesson-footer-actions">
-            <button className="lesson-cancel-btn" onClick={handleClose}>
+            <button className="lesson-cancel-btn" onClick={handleClose} type="button">
               Cancel
             </button>
             <button 
@@ -131,6 +177,7 @@ You can include:
               onClick={handleSave}
               disabled={!hasChanges}
               style={{ backgroundColor: hasChanges ? levelColor : undefined }}
+              type="button"
             >
               Save Lesson
             </button>
@@ -142,4 +189,3 @@ You can include:
 }
 
 export default LessonEditor
-
