@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import LessonEditor from './LessonEditor'
 
 function ChecklistManager({
   checklists,
@@ -9,6 +10,7 @@ function ChecklistManager({
   onReorderItems,
   onReorderSubItems,
   onMoveItem,
+  onSaveLessonContent,
   onLinkSong,
   onUnlinkSong,
   onAddSong,
@@ -33,6 +35,9 @@ function ChecklistManager({
   const [dragOverItem, setDragOverItem] = useState(null) // { level, index }
   const [draggedSubItem, setDraggedSubItem] = useState(null) // { level, itemId, subIndex }
   const [dragOverSubItem, setDragOverSubItem] = useState(null) // { level, itemId, subIndex }
+  
+  // Lesson editor state
+  const [editingLesson, setEditingLesson] = useState(null) // { level, item, subItem? }
 
   const toggleLevelCollapsed = (level) => {
     setCollapsedLevels(prev => {
@@ -440,6 +445,13 @@ function ChecklistManager({
                             <span className="level-item-text">{item.text}</span>
                             <div className="level-item-actions">
                               <button
+                                className={`action-btn-mini edit ${item.lessonContent ? 'has-content' : ''}`}
+                                onClick={() => setEditingLesson({ level, item, subItem: null })}
+                                title="Edit lesson content"
+                              >
+                                ✎
+                              </button>
+                              <button
                                 className="action-btn-mini move"
                                 onClick={() => {
                                   if (movingItem?.itemId === item.id) {
@@ -515,6 +527,13 @@ function ChecklistManager({
                                   <span className="level-sub-text">{subItem.text}</span>
                                   <div className="level-sub-actions">
                                     <button
+                                      className={`action-btn-mini edit ${subItem.lessonContent ? 'has-content' : ''}`}
+                                      onClick={() => setEditingLesson({ level, item, subItem })}
+                                      title="Edit lesson content"
+                                    >
+                                      ✎
+                                    </button>
+                                    <button
                                       className="action-btn-mini song"
                                       onClick={() => {
                                         if (linkingSongTo?.itemId === item.id && linkingSongTo?.subItemId === subItem.id) {
@@ -585,6 +604,25 @@ function ChecklistManager({
           )
         })}
       </div>
+
+      {editingLesson && (
+        <LessonEditor
+          item={editingLesson.item}
+          subItem={editingLesson.subItem}
+          levelName={levelNames[editingLesson.level]}
+          levelColor={levelColors[editingLesson.level]}
+          onSave={(content) => {
+            onSaveLessonContent(
+              editingLesson.level,
+              editingLesson.item.id,
+              editingLesson.subItem?.id || null,
+              content
+            )
+            setEditingLesson(null)
+          }}
+          onClose={() => setEditingLesson(null)}
+        />
+      )}
     </div>
   )
 }

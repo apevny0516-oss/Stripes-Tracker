@@ -2279,6 +2279,364 @@ body {
   color: #667eea;
 }
 
+/* Edit lesson button */
+.action-btn-mini.edit {
+  font-size: 0.875rem;
+}
+
+.action-btn-mini.edit:hover {
+  background: #10b981;
+  border-color: #10b981;
+  color: white;
+}
+
+.action-btn-mini.edit.has-content {
+  background: rgba(16, 185, 129, 0.2);
+  border-color: #10b981;
+  color: #10b981;
+}
+
+.action-btn-mini.edit.has-content:hover {
+  background: #10b981;
+  color: white;
+}
+
+/* Lesson Editor Modal */
+.lesson-editor-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+  animation: fadeIn 0.2s ease;
+}
+
+.lesson-editor-modal {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-xl);
+  width: 100%;
+  max-width: 900px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  box-shadow: var(--shadow-lg), 0 0 80px rgba(102, 126, 234, 0.2);
+  animation: modalSlideUp 0.3s ease;
+}
+
+.lesson-editor-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.25rem 1.5rem;
+  border-bottom: 3px solid;
+  background: var(--bg-elevated);
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+}
+
+.lesson-header-info {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.lesson-level-badge {
+  padding: 0.375rem 0.875rem;
+  border-radius: 50px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: white;
+  letter-spacing: 0.02em;
+  flex-shrink: 0;
+}
+
+.lesson-title-section {
+  flex: 1;
+  min-width: 0;
+}
+
+.lesson-parent-item {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-bottom: 0.125rem;
+}
+
+.lesson-item-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.3;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lesson-item-title .sub-indicator {
+  color: var(--text-muted);
+}
+
+.lesson-close-btn {
+  width: 36px;
+  height: 36px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 50%;
+  color: var(--text-secondary);
+  font-size: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.lesson-close-btn:hover {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: white;
+  transform: rotate(90deg);
+}
+
+.lesson-editor-toolbar-hint {
+  padding: 0.75rem 1.5rem;
+  background: rgba(102, 126, 234, 0.1);
+  border-bottom: 1px solid var(--border-color);
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.lesson-editor-content {
+  flex: 1;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Quill Editor Customization */
+.lesson-editor-content .quill {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  height: 100%;
+}
+
+.lesson-editor-content .ql-toolbar {
+  background: var(--bg-elevated);
+  border: none;
+  border-bottom: 1px solid var(--border-color);
+  padding: 0.75rem 1rem;
+  flex-shrink: 0;
+}
+
+.lesson-editor-content .ql-toolbar .ql-stroke {
+  stroke: var(--text-secondary);
+}
+
+.lesson-editor-content .ql-toolbar .ql-fill {
+  fill: var(--text-secondary);
+}
+
+.lesson-editor-content .ql-toolbar .ql-picker {
+  color: var(--text-secondary);
+}
+
+.lesson-editor-content .ql-toolbar button:hover .ql-stroke,
+.lesson-editor-content .ql-toolbar button.ql-active .ql-stroke {
+  stroke: #667eea;
+}
+
+.lesson-editor-content .ql-toolbar button:hover .ql-fill,
+.lesson-editor-content .ql-toolbar button.ql-active .ql-fill {
+  fill: #667eea;
+}
+
+.lesson-editor-content .ql-toolbar .ql-picker-label:hover,
+.lesson-editor-content .ql-toolbar .ql-picker-label.ql-active {
+  color: #667eea;
+}
+
+.lesson-editor-content .ql-toolbar .ql-picker-options {
+  background: var(--bg-card);
+  border-color: var(--border-color);
+}
+
+.lesson-editor-content .ql-toolbar .ql-picker-item {
+  color: var(--text-primary);
+}
+
+.lesson-editor-content .ql-toolbar .ql-picker-item:hover {
+  color: #667eea;
+}
+
+.lesson-editor-content .ql-container {
+  border: none;
+  font-family: 'Outfit', sans-serif;
+  font-size: 1rem;
+  flex: 1;
+  overflow: auto;
+  min-height: 350px;
+}
+
+.lesson-editor-content .ql-editor {
+  padding: 1.5rem;
+  color: var(--text-primary);
+  line-height: 1.7;
+  min-height: 350px;
+}
+
+.lesson-editor-content .ql-editor.ql-blank::before {
+  color: var(--text-muted);
+  font-style: normal;
+  left: 1.5rem;
+  right: 1.5rem;
+}
+
+.lesson-editor-content .ql-editor h1,
+.lesson-editor-content .ql-editor h2,
+.lesson-editor-content .ql-editor h3,
+.lesson-editor-content .ql-editor h4,
+.lesson-editor-content .ql-editor h5,
+.lesson-editor-content .ql-editor h6 {
+  color: var(--text-primary);
+  margin-bottom: 0.5em;
+}
+
+.lesson-editor-content .ql-editor p {
+  margin-bottom: 1em;
+}
+
+.lesson-editor-content .ql-editor ul,
+.lesson-editor-content .ql-editor ol {
+  padding-left: 1.5em;
+  margin-bottom: 1em;
+}
+
+.lesson-editor-content .ql-editor blockquote {
+  border-left: 4px solid #667eea;
+  padding-left: 1rem;
+  margin: 1em 0;
+  color: var(--text-secondary);
+}
+
+.lesson-editor-content .ql-editor pre {
+  background: var(--bg-elevated);
+  border-radius: var(--radius-md);
+  padding: 1rem;
+  margin: 1em 0;
+  overflow-x: auto;
+}
+
+.lesson-editor-content .ql-editor code {
+  background: var(--bg-elevated);
+  padding: 0.125rem 0.375rem;
+  border-radius: var(--radius-sm);
+  font-family: 'Space Mono', monospace;
+  font-size: 0.9em;
+}
+
+.lesson-editor-content .ql-editor a {
+  color: #667eea;
+}
+
+.lesson-editor-content .ql-editor img {
+  max-width: 100%;
+  border-radius: var(--radius-md);
+  margin: 1em 0;
+}
+
+.lesson-editor-content .ql-editor iframe {
+  max-width: 100%;
+  border-radius: var(--radius-md);
+  margin: 1em 0;
+}
+
+.lesson-editor-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.5rem;
+  border-top: 1px solid var(--border-color);
+  background: var(--bg-elevated);
+  border-radius: 0 0 var(--radius-xl) var(--radius-xl);
+}
+
+.lesson-footer-info {
+  font-size: 0.8rem;
+}
+
+.unsaved-indicator {
+  color: #f59e0b;
+  font-weight: 500;
+}
+
+.saved-indicator {
+  color: var(--success);
+}
+
+.lesson-footer-actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.lesson-cancel-btn {
+  padding: 0.625rem 1.25rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.lesson-cancel-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.lesson-save-btn {
+  padding: 0.625rem 1.5rem;
+  background: #667eea;
+  border: none;
+  border-radius: var(--radius-md);
+  color: white;
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.lesson-save-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+.lesson-save-btn:disabled {
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .app-header {
@@ -2386,6 +2744,35 @@ body {
     width: 100%;
     height: auto;
     padding: 0.625rem;
+  }
+
+  .lesson-editor-modal {
+    max-width: 100%;
+    max-height: 100vh;
+    border-radius: 0;
+  }
+
+  .lesson-editor-header {
+    border-radius: 0;
+  }
+
+  .lesson-editor-footer {
+    border-radius: 0;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .lesson-footer-actions {
+    width: 100%;
+  }
+
+  .lesson-cancel-btn,
+  .lesson-save-btn {
+    flex: 1;
+  }
+
+  .lesson-item-title {
+    font-size: 1rem;
   }
 }
 

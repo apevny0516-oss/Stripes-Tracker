@@ -422,6 +422,30 @@ function App() {
     }))
   }
 
+  const saveLessonContent = (level, itemId, subItemId, content) => {
+    markLocalChange()
+    setChecklists(prev => ({
+      ...prev,
+      [level]: (prev[level] || []).map(item => {
+        if (item.id !== itemId) return item
+        
+        if (subItemId) {
+          // Save to sub-item
+          return {
+            ...item,
+            subItems: (item.subItems || []).map(sub => {
+              if (sub.id !== subItemId) return sub
+              return { ...sub, lessonContent: content }
+            })
+          }
+        } else {
+          // Save to main item
+          return { ...item, lessonContent: content }
+        }
+      })
+    }))
+  }
+
   const moveChecklistItem = (fromLevel, itemId, toLevel) => {
     markLocalChange()
     
@@ -649,6 +673,7 @@ function App() {
             onReorderItems={reorderItems}
             onReorderSubItems={reorderSubItems}
             onMoveItem={moveChecklistItem}
+            onSaveLessonContent={saveLessonContent}
             onLinkSong={linkSong}
             onUnlinkSong={unlinkSong}
             onAddSong={addSong}
