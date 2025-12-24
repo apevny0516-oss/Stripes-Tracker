@@ -10,21 +10,20 @@ function LessonEditor({
 }) {
   const [content, setContent] = useState('')
   const [hasChanges, setHasChanges] = useState(false)
-  const [viewMode, setViewMode] = useState('edit') // 'edit' or 'preview'
+  const [viewMode, setViewMode] = useState('edit')
   const textareaRef = useRef(null)
 
-  // Get the current item being edited (either main item or sub-item)
   const editingItem = subItem || item
-  const isSubItem = !!subItem
+  const isSubItem = Boolean(subItem)
+  const itemId = editingItem?.id
+  const initialContent = editingItem?.lessonContent || ''
 
   useEffect(() => {
-    if (editingItem) {
-      setContent(editingItem.lessonContent || '')
-      setHasChanges(false)
-    }
-  }, [editingItem])
+    setContent(initialContent)
+    setHasChanges(false)
+  }, [itemId, initialContent])
 
-  // Safety check - if no item, don't render
+  // Safety check - render nothing if no item
   if (!item) {
     return null
   }
@@ -32,7 +31,7 @@ function LessonEditor({
   const handleContentChange = (e) => {
     const value = e.target.value
     setContent(value)
-    setHasChanges(value !== (editingItem?.lessonContent || ''))
+    setHasChanges(value !== initialContent)
   }
 
   const handleSave = () => {
@@ -40,9 +39,11 @@ function LessonEditor({
     setHasChanges(false)
   }
 
-  const handleClose = () => {
+  const handleCloseClick = (e) => {
+    e.preventDefault()
+    e.stopPropagation()
     if (hasChanges) {
-      if (confirm('You have unsaved changes. Are you sure you want to close?')) {
+      if (window.confirm('You have unsaved changes. Are you sure you want to close?')) {
         onClose()
       }
     } else {
@@ -50,7 +51,12 @@ function LessonEditor({
     }
   }
 
-  // Helper functions for inserting formatting
+  const handleOverlayClick = (e) => {
+    if (e.target === e.currentTarget) {
+      handleCloseClick(e)
+    }
+  }
+
   const insertFormatting = (before, after = '') => {
     const textarea = textareaRef.current
     if (!textarea) return
@@ -63,30 +69,14 @@ function LessonEditor({
     setContent(newText)
     setHasChanges(true)
     
-    // Reset cursor position
     setTimeout(() => {
       textarea.focus()
       textarea.setSelectionRange(start + before.length, start + before.length + selectedText.length)
     }, 0)
   }
 
-  const toolbarButtons = [
-    { label: 'H1', action: () => insertFormatting('<h1>', '</h1>'), title: 'Heading 1' },
-    { label: 'H2', action: () => insertFormatting('<h2>', '</h2>'), title: 'Heading 2' },
-    { label: 'H3', action: () => insertFormatting('<h3>', '</h3>'), title: 'Heading 3' },
-    { label: 'B', action: () => insertFormatting('<strong>', '</strong>'), title: 'Bold', style: { fontWeight: 'bold' } },
-    { label: 'I', action: () => insertFormatting('<em>', '</em>'), title: 'Italic', style: { fontStyle: 'italic' } },
-    { label: 'U', action: () => insertFormatting('<u>', '</u>'), title: 'Underline', style: { textDecoration: 'underline' } },
-    { label: '•', action: () => insertFormatting('<ul>\n  <li>', '</li>\n</ul>'), title: 'Bullet List' },
-    { label: '1.', action: () => insertFormatting('<ol>\n  <li>', '</li>\n</ol>'), title: 'Numbered List' },
-    { label: '❝', action: () => insertFormatting('<blockquote>', '</blockquote>'), title: 'Quote' },
-    { label: '🔗', action: () => insertFormatting('<a href="">', '</a>'), title: 'Link' },
-    { label: '🖼️', action: () => insertFormatting('<img src="', '" alt="image" />'), title: 'Image' },
-    { label: '▶️', action: () => insertFormatting('<iframe src="', '" width="560" height="315"></iframe>'), title: 'Video Embed' },
-  ]
-
   return (
-    <div className="lesson-editor-overlay" onClick={handleClose}>
+    <div className="lesson-editor-overlay" onClick={handleOverlayClick}>
       <div className="lesson-editor-modal" onClick={(e) => e.stopPropagation()}>
         <div className="lesson-editor-header" style={{ borderBottomColor: levelColor }}>
           <div className="lesson-header-info">
@@ -99,27 +89,25 @@ function LessonEditor({
               )}
               <h2 className="lesson-item-title">
                 {isSubItem && <span className="sub-indicator">↳ </span>}
-                {editingItem?.text}
+                {editingItem?.text || 'Untitled'}
               </h2>
             </div>
           </div>
-          <button className="lesson-close-btn" onClick={handleClose}>×</button>
+          <button className="lesson-close-btn" onClick={handleCloseClick} type="button">×</button>
         </div>
 
         <div className="lesson-editor-toolbar">
           <div className="toolbar-buttons">
-            {toolbarButtons.map((btn, idx) => (
-              <button
-                key={idx}
-                className="toolbar-btn"
-                onClick={btn.action}
-                title={btn.title}
-                style={btn.style}
-                type="button"
-              >
-                {btn.label}
-              </button>
-            ))}
+            <button className="toolbar-btn" onClick={() => insertFormatting('<h1>', '</h1>')} title="Heading 1" type="button">H1</button>
+            <button className="toolbar-btn" onClick={() => insertFormatting('<h2>', '</h2>')} title="Heading 2" type="button">H2</button>
+            <button className="toolbar-btn" onClick={() => insertFormatting('<h3>', '</h3>')} title="Heading 3" type="button">H3</button>
+            <button className="toolbar-btn" onClick={() => insertFormatting('<strong>', '</strong>')} title="Bold" type="button" style={{ fontWeight: 'bold' }}>B</button>
+            <button className="toolbar-btn" onClick={() => insertFormatting('<em>', '</em>')} title="Italic" type="button" style={{ fontStyle: 'italic' }}>I</button>
+            <button className="toolbar-btn" onClick={() => insertFormatting('<u>', '</u>')} title="Underline" type="button" style={{ textDecoration: 'underline' }}>U</button>
+            <button className="toolbar-btn" onClick={() => insertFormatting('<ul>\n  <li>', '</li>\n</ul>')} title="Bullet List" type="button">•</button>
+            <button className="toolbar-btn" onClick={() => insertFormatting('<ol>\n  <li>', '</li>\n</ol>')} title="Numbered List" type="button">1.</button>
+            <button className="toolbar-btn" onClick={() => insertFormatting('<blockquote>', '</blockquote>')} title="Quote" type="button">❝</button>
+            <button className="toolbar-btn" onClick={() => insertFormatting('<a href="">', '</a>')} title="Link" type="button">🔗</button>
           </div>
           <div className="view-toggle">
             <button 
@@ -148,21 +136,18 @@ function LessonEditor({
               onChange={handleContentChange}
               placeholder="Start writing your lesson content here...
 
-You can use HTML tags for formatting:
+Use HTML tags for formatting:
 • <h1>, <h2>, <h3> for headings
-• <strong> or <b> for bold
-• <em> or <i> for italic
-• <ul> and <li> for bullet lists
-• <ol> and <li> for numbered lists
-• <a href='url'>text</a> for links
-• <img src='url' /> for images
-
-Use the toolbar buttons above to insert formatting."
+• <strong> for bold, <em> for italic
+• <ul><li>item</li></ul> for bullet lists
+• <a href='url'>text</a> for links"
             />
           ) : (
             <div 
               className="lesson-preview"
-              dangerouslySetInnerHTML={{ __html: content || '<p style="color: #6b7280; font-style: italic;">No content yet. Switch to Edit mode to add content.</p>' }}
+              dangerouslySetInnerHTML={{ 
+                __html: content || '<p style="color: #6b7280;">No content yet.</p>' 
+              }}
             />
           )}
         </div>
@@ -172,11 +157,11 @@ Use the toolbar buttons above to insert formatting."
             {hasChanges ? (
               <span className="unsaved-indicator">● Unsaved changes</span>
             ) : (
-              <span className="saved-indicator">✓ All changes saved</span>
+              <span className="saved-indicator">✓ Saved</span>
             )}
           </div>
           <div className="lesson-footer-actions">
-            <button className="lesson-cancel-btn" onClick={handleClose} type="button">
+            <button className="lesson-cancel-btn" onClick={handleCloseClick} type="button">
               Cancel
             </button>
             <button 
