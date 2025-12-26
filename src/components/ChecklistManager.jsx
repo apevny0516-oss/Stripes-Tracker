@@ -611,19 +611,22 @@ function ChecklistManager({
         })}
       </div>
 
-      {editingLesson && editingLesson.item && (
+      {editingLesson && editingLesson.item && editingLesson.level && (
         <LessonEditor
+          key={`${editingLesson.level}-${editingLesson.item.id}-${editingLesson.subItem?.id || 'main'}`}
           item={editingLesson.item}
           subItem={editingLesson.subItem}
-          levelName={levelNames[editingLesson.level]}
-          levelColor={levelColors[editingLesson.level]}
+          levelName={levelNames[editingLesson.level] || 'Unknown Level'}
+          levelColor={levelColors[editingLesson.level] || '#666'}
           onSave={(content) => {
-            onSaveLessonContent(
-              editingLesson.level,
-              editingLesson.item.id,
-              editingLesson.subItem?.id || null,
-              content
-            )
+            if (onSaveLessonContent && editingLesson.item?.id) {
+              onSaveLessonContent(
+                editingLesson.level,
+                editingLesson.item.id,
+                editingLesson.subItem?.id || null,
+                content
+              )
+            }
             setEditingLesson(null)
           }}
           onClose={() => setEditingLesson(null)}

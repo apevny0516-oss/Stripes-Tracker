@@ -1345,8 +1345,9 @@ body {
 .level-item-actions {
   display: flex;
   gap: 0.25rem;
-  opacity: 0.6;
+  opacity: 1;
   transition: opacity 0.2s ease;
+  flex-shrink: 0;
 }
 
 .level-item-header:hover .level-item-actions {
