@@ -8,6 +8,7 @@ import StudentList from './components/StudentList'
 import StudentProgress from './components/StudentProgress'
 import ChecklistManager from './components/ChecklistManager'
 import SongManager from './components/SongManager'
+import CurriculumView from './components/CurriculumView'
 import './App.css'
 
 const LEVEL_ORDER = ['level1', 'level2', 'level3', 'level4', 'level5', 'level6']
@@ -596,6 +597,12 @@ function App() {
           >
             🎵 Songs
           </button>
+          <button 
+            className={`nav-tab curriculum-tab ${view === 'curriculum' ? 'active' : ''}`}
+            onClick={() => setView('curriculum')}
+          >
+            📖 Curriculum
+          </button>
         </nav>
         <div className="user-section">
           <img 
@@ -610,7 +617,7 @@ function App() {
         </div>
       </header>
 
-      {view !== 'songs' && view !== 'manage' && (
+      {view !== 'songs' && view !== 'manage' && view !== 'curriculum' && (
         <div className="level-tabs">
           {LEVEL_ORDER.map(level => (
             <button
@@ -692,6 +699,16 @@ function App() {
             onEditSong={editSong}
             onDeleteSong={deleteSong}
             levelNames={LEVEL_NAMES}
+          />
+        )}
+
+        {view === 'curriculum' && (
+          <CurriculumView
+            checklists={checklists}
+            levelColors={LEVEL_COLORS}
+            levelTextColors={LEVEL_TEXT_COLORS}
+            levelNames={LEVEL_NAMES}
+            levelOrder={LEVEL_ORDER}
           />
         )}
       </main>
