@@ -395,25 +395,174 @@ function App() {
 
   // ========== SONG FUNCTIONS ==========
 
-  const addSong = (artist, title) => {
+  const addSong = (songData) => {
     if (!isAdmin) return
     markLocalChange()
-    const newSong = {
-      id: uuidv4(),
-      artist,
-      title,
-      dateAdded: new Date().toISOString()
+    
+    // Handle both old format (artist, title) and new format (object)
+    let newSong
+    if (typeof songData === 'string') {
+      // Old format: addSong(artist, title) - for backwards compatibility
+      const [artist, title] = arguments
+      newSong = {
+        id: uuidv4(),
+        artist: artist || '',
+        title: title || '',
+        dateAdded: new Date().toISOString()
+      }
+    } else {
+      // New format: addSong({ artist, title, soundsliceUrl, ... })
+      newSong = {
+        id: uuidv4(),
+        artist: songData.artist || '',
+        title: songData.title || '',
+        soundsliceUrl: songData.soundsliceUrl || '',
+        type: songData.type || [],
+        tuning: songData.tuning || 'E Standard (E A D G B E)',
+        difficulty: songData.difficulty || '',
+        techniques: songData.techniques || [],
+        theory: songData.theory || [],
+        genre: songData.genre || [],
+        guitarProUrl: songData.guitarProUrl || '',
+        hasBackingTrack: songData.hasBackingTrack || false,
+        notes: songData.notes || '',
+        openChordsUsed: songData.openChordsUsed || [],
+        dateAdded: new Date().toISOString()
+      }
     }
+    
     setSongs([...songs, newSong])
     return newSong.id
   }
 
-  const editSong = (songId, artist, title) => {
+  const editSong = (songId, songData) => {
     if (!isAdmin) return
     markLocalChange()
-    setSongs(songs.map(s => 
-      s.id === songId ? { ...s, artist, title } : s
-    ))
+    
+    // Handle both old format (songId, artist, title) and new format (songId, object)
+    if (typeof songData === 'string') {
+      // Old format for backwards compatibility
+      const [, artist, title] = arguments
+      setSongs(songs.map(s => 
+        s.id === songId ? { ...s, artist, title } : s
+      ))
+    } else {
+      // New format with full song data
+      setSongs(songs.map(s => 
+        s.id === songId ? { 
+          ...s, 
+          artist: songData.artist ?? s.artist,
+          title: songData.title ?? s.title,
+          soundsliceUrl: songData.soundsliceUrl ?? s.soundsliceUrl,
+          type: songData.type ?? s.type,
+          tuning: songData.tuning ?? s.tuning,
+          difficulty: songData.difficulty ?? s.difficulty,
+          techniques: songData.techniques ?? s.techniques,
+          theory: songData.theory ?? s.theory,
+          genre: songData.genre ?? s.genre,
+          guitarProUrl: songData.guitarProUrl ?? s.guitarProUrl,
+          hasBackingTrack: songData.hasBackingTrack ?? s.hasBackingTrack,
+          notes: songData.notes ?? s.notes,
+          openChordsUsed: songData.openChordsUsed ?? s.openChordsUsed
+        } : s
+      ))
+    }
+  }
+  
+  // Import songs from CSV data
+  const importSongsFromCSV = (csvText) => {
+    if (!isAdmin) return
+    
+    const lines = csvText.split('\n')
+    if (lines.length < 2) return { imported: 0, errors: [] }
+    
+    // Parse header
+    const headers = lines[0].split(',').map(h => h.trim().toLowerCase())
+    
+    const importedSongs = []
+    const errors = []
+    
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i].trim()
+      if (!line) continue
+      
+      // Parse CSV line (handle quoted values)
+      const values = []
+      let current = ''
+      let inQuotes = false
+      for (let j = 0; j < line.length; j++) {
+        const char = line[j]
+        if (char === '"') {
+          inQuotes = !inQuotes
+        } else if (char === ',' && !inQuotes) {
+          values.push(current.trim())
+          current = ''
+        } else {
+          current += char
+        }
+      }
+      values.push(current.trim())
+      
+      // Create song object from row
+      const row = {}
+      headers.forEach((header, idx) => {
+        row[header] = values[idx] || ''
+      })
+      
+      if (!row.title && !row.artist) continue
+      
+      // Parse type field (can be comma-separated)
+      const parseTypes = (typeStr) => {
+        if (!typeStr) return []
+        return typeStr.split(',').map(t => t.trim()).filter(Boolean)
+      }
+      
+      // Parse genre field
+      const parseGenre = (genreStr) => {
+        if (!genreStr) return []
+        return genreStr.split(',').map(g => g.trim()).filter(Boolean)
+      }
+      
+      // Parse techniques
+      const parseTechniques = (techStr) => {
+        if (!techStr) return []
+        return techStr.split(',').map(t => t.trim()).filter(Boolean)
+      }
+      
+      try {
+        const song = {
+          id: uuidv4(),
+          artist: row.artist || '',
+          title: row.title || '',
+          soundsliceUrl: row.soundslice || '',
+          type: parseTypes(row.type),
+          tuning: row.tuning || 'E Standard (E A D G B E)',
+          difficulty: row.difficulty || '',
+          techniques: parseTechniques(row.techniques),
+          theory: parseTechniques(row.theory),
+          genre: parseGenre(row.genre),
+          guitarProUrl: row['guitar pro & pdf'] || row.guitarpro || '',
+          hasBackingTrack: row['backing track?'] === 'true' || row['backing track?'] === 'TRUE',
+          notes: row.notes || '',
+          openChordsUsed: row['open chords used'] ? row['open chords used'].split(',').map(c => c.trim()).filter(Boolean) : [],
+          dateAdded: new Date().toISOString()
+        }
+        
+        // Only add if we have at least a title
+        if (song.title || song.artist) {
+          importedSongs.push(song)
+        }
+      } catch (err) {
+        errors.push(`Row ${i + 1}: ${err.message}`)
+      }
+    }
+    
+    if (importedSongs.length > 0) {
+      markLocalChange()
+      setSongs(prev => [...prev, ...importedSongs])
+    }
+    
+    return { imported: importedSongs.length, errors }
   }
 
   const deleteSong = (songId) => {
@@ -1058,6 +1207,7 @@ function App() {
             onAddSong={isAdmin ? addSong : null}
             onEditSong={isAdmin ? editSong : null}
             onDeleteSong={isAdmin ? deleteSong : null}
+            onImportSongs={isAdmin ? importSongsFromCSV : null}
             levelNames={LEVEL_NAMES}
             isReadOnly={!isAdmin}
           />
