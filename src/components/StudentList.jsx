@@ -13,7 +13,8 @@ function StudentList({
   levelOrder,
   levelNames,
   sortBy,
-  onSortChange
+  onSortChange,
+  isAdmin
 }) {
   const [newStudentName, setNewStudentName] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
@@ -22,7 +23,7 @@ function StudentList({
 
   const handleSubmit = (e) => {
     e.preventDefault()
-    if (newStudentName.trim()) {
+    if (newStudentName.trim() && onAddStudent) {
       onAddStudent(newStudentName.trim())
       setNewStudentName('')
     }
@@ -30,13 +31,14 @@ function StudentList({
 
   const startEditing = (e, student) => {
     e.stopPropagation()
+    if (!onEditStudentName) return
     setEditingId(student.id)
     setEditingName(student.name)
   }
 
   const saveEdit = (e) => {
     e.stopPropagation()
-    if (editingName.trim()) {
+    if (editingName.trim() && onEditStudentName) {
       onEditStudentName(editingId, editingName.trim())
     }
     setEditingId(null)
@@ -95,22 +97,25 @@ function StudentList({
   return (
     <div className="student-list-container">
       <div className="student-list-header">
-        <h2>Students</h2>
+        <h2>{isAdmin ? 'Students' : 'My Students'}</h2>
         <p className="student-count">{students.length} student{students.length !== 1 ? 's' : ''}</p>
       </div>
 
-      <form onSubmit={handleSubmit} className="add-student-form">
-        <input
-          type="text"
-          value={newStudentName}
-          onChange={(e) => setNewStudentName(e.target.value)}
-          placeholder="Enter student name..."
-          className="student-input"
-        />
-        <button type="submit" className="add-btn">
-          <span>+</span> Add Student
-        </button>
-      </form>
+      {/* Only show add form for admin */}
+      {onAddStudent && (
+        <form onSubmit={handleSubmit} className="add-student-form">
+          <input
+            type="text"
+            value={newStudentName}
+            onChange={(e) => setNewStudentName(e.target.value)}
+            placeholder="Enter student name..."
+            className="student-input"
+          />
+          <button type="submit" className="add-btn">
+            <span>+</span> Add Student
+          </button>
+        </form>
+      )}
 
       <div className="search-sort-row">
         <div className="search-container">
@@ -123,26 +128,33 @@ function StudentList({
           />
         </div>
         
-        <div className="sort-container">
-          <label className="sort-label">Sort by:</label>
-          <select 
-            value={sortBy} 
-            onChange={(e) => onSortChange(e.target.value)}
-            className="sort-select"
-          >
-            <option value="name-asc">Name (A → Z)</option>
-            <option value="name-desc">Name (Z → A)</option>
-            <option value="level-desc">Level (Highest first)</option>
-            <option value="level-asc">Level (Lowest first)</option>
-          </select>
-        </div>
+        {onSortChange && (
+          <div className="sort-container">
+            <label className="sort-label">Sort by:</label>
+            <select 
+              value={sortBy} 
+              onChange={(e) => onSortChange(e.target.value)}
+              className="sort-select"
+            >
+              <option value="name-asc">Name (A → Z)</option>
+              <option value="name-desc">Name (Z → A)</option>
+              <option value="level-desc">Level (Highest first)</option>
+              <option value="level-asc">Level (Lowest first)</option>
+            </select>
+          </div>
+        )}
       </div>
 
       <div className="students-grid">
         {sortedAndFilteredStudents.length === 0 ? (
           <div className="empty-state">
             <span className="empty-icon">👤</span>
-            <p>{students.length === 0 ? 'No students yet. Add your first student above!' : 'No students match your search.'}</p>
+            <p>
+              {students.length === 0 
+                ? (isAdmin ? 'No students yet. Add your first student above!' : 'No students assigned to you yet.')
+                : 'No students match your search.'
+              }
+            </p>
           </div>
         ) : (
           sortedAndFilteredStudents.map(student => {
@@ -166,7 +178,8 @@ function StudentList({
                     {levelNames[student.currentLevel]}
                   </div>
                   <div className="card-actions">
-                    {!isEditing && (
+                    {/* Only show edit/delete buttons for admin */}
+                    {!isEditing && onEditStudentName && (
                       <button
                         className="edit-btn"
                         onClick={(e) => startEditing(e, student)}
@@ -175,18 +188,20 @@ function StudentList({
                         ✎
                       </button>
                     )}
-                    <button
-                      className="delete-btn"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        if (confirm(`Delete ${student.name}?`)) {
-                          onDeleteStudent(student.id)
-                        }
-                      }}
-                      title="Delete student"
-                    >
-                      ×
-                    </button>
+                    {onDeleteStudent && (
+                      <button
+                        className="delete-btn"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          if (confirm(`Delete ${student.name}?`)) {
+                            onDeleteStudent(student.id)
+                          }
+                        }}
+                        title="Delete student"
+                      >
+                        ×
+                      </button>
+                    )}
                   </div>
                 </div>
                 

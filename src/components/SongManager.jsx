@@ -15,7 +15,8 @@ function SongManager({
   onAddSong,
   onEditSong,
   onDeleteSong,
-  levelNames
+  levelNames,
+  isReadOnly
 }) {
   const [newArtist, setNewArtist] = useState('')
   const [newTitle, setNewTitle] = useState('')
@@ -60,7 +61,7 @@ function SongManager({
 
   const handleAddSong = (e) => {
     e.preventDefault()
-    if (newTitle.trim()) {
+    if (newTitle.trim() && onAddSong) {
       onAddSong(newArtist.trim(), newTitle.trim())
       setNewArtist('')
       setNewTitle('')
@@ -68,13 +69,14 @@ function SongManager({
   }
 
   const startEditing = (song) => {
+    if (!onEditSong) return
     setEditingId(song.id)
     setEditArtist(song.artist)
     setEditTitle(song.title)
   }
 
   const saveEdit = () => {
-    if (editTitle.trim()) {
+    if (editTitle.trim() && onEditSong) {
       onEditSong(editingId, editArtist.trim(), editTitle.trim())
     }
     setEditingId(null)
@@ -90,29 +92,35 @@ function SongManager({
       <div className="manager-header">
         <h2>🎵 Song Database</h2>
         <p className="manager-hint">
-          Add songs here, then link them to checklist items in "Manage Checklists"
+          {isReadOnly 
+            ? 'View songs used in the curriculum'
+            : 'Add songs here, then link them to checklist items in "Manage Checklists"'
+          }
         </p>
       </div>
 
-      <form onSubmit={handleAddSong} className="add-song-form">
-        <input
-          type="text"
-          value={newArtist}
-          onChange={(e) => setNewArtist(e.target.value)}
-          placeholder="Artist (optional)"
-          className="artist-input"
-        />
-        <input
-          type="text"
-          value={newTitle}
-          onChange={(e) => setNewTitle(e.target.value)}
-          placeholder="Song title *"
-          className="title-input"
-        />
-        <button type="submit" className="add-btn song-add-btn">
-          <span>+</span> Add Song
-        </button>
-      </form>
+      {/* Only show add form if not read-only */}
+      {!isReadOnly && onAddSong && (
+        <form onSubmit={handleAddSong} className="add-song-form">
+          <input
+            type="text"
+            value={newArtist}
+            onChange={(e) => setNewArtist(e.target.value)}
+            placeholder="Artist (optional)"
+            className="artist-input"
+          />
+          <input
+            type="text"
+            value={newTitle}
+            onChange={(e) => setNewTitle(e.target.value)}
+            placeholder="Song title *"
+            className="title-input"
+          />
+          <button type="submit" className="add-btn song-add-btn">
+            <span>+</span> Add Song
+          </button>
+        </form>
+      )}
 
       {songs.length > 5 && (
         <div className="search-container">
@@ -129,8 +137,10 @@ function SongManager({
       {songs.length === 0 ? (
         <div className="empty-state">
           <span className="empty-icon">🎸</span>
-          <p>No songs in your database yet.</p>
-          <p className="hint">Add songs above to link them to curriculum items.</p>
+          <p>No songs in the database yet.</p>
+          {!isReadOnly && (
+            <p className="hint">Add songs above to link them to curriculum items.</p>
+          )}
         </div>
       ) : (
         <div className="songs-list">
@@ -172,30 +182,37 @@ function SongManager({
                     </div>
                     <span className="song-view-hint">View details →</span>
                   </div>
-                  <div className="song-actions">
-                    <button
-                      className="action-btn edit"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        startEditing(song)
-                      }}
-                      title="Edit song"
-                    >
-                      ✎
-                    </button>
-                    <button
-                      className="action-btn delete"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        if (confirm(`Delete "${song.artist ? song.artist + ' - ' : ''}${song.title}"?`)) {
-                          onDeleteSong(song.id)
-                        }
-                      }}
-                      title="Delete song"
-                    >
-                      ×
-                    </button>
-                  </div>
+                  {/* Only show action buttons if not read-only */}
+                  {!isReadOnly && (
+                    <div className="song-actions">
+                      {onEditSong && (
+                        <button
+                          className="action-btn edit"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            startEditing(song)
+                          }}
+                          title="Edit song"
+                        >
+                          ✎
+                        </button>
+                      )}
+                      {onDeleteSong && (
+                        <button
+                          className="action-btn delete"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            if (confirm(`Delete "${song.artist ? song.artist + ' - ' : ''}${song.title}"?`)) {
+                              onDeleteSong(song.id)
+                            }
+                          }}
+                          title="Delete song"
+                        >
+                          ×
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </>
               )}
             </div>
@@ -233,7 +250,9 @@ function SongManager({
                     <div className="no-linked-concepts">
                       <span className="no-concepts-icon">🔗</span>
                       <p>This song is not linked to any checklist concepts yet.</p>
-                      <p className="hint">Link songs to checklist items in "Manage Checklists"</p>
+                      {!isReadOnly && (
+                        <p className="hint">Link songs to checklist items in "Manage Checklists"</p>
+                      )}
                     </div>
                   )
                 }
