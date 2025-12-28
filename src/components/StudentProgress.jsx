@@ -9,13 +9,14 @@ function StudentProgress({
   levelColors,
   levelTextColors,
   levelOrder,
-  levelNames
+  levelNames,
+  isAdmin
 }) {
   const items = checklists[activeLevel] || []
   const completion = calculateCompletion(student, activeLevel)
   const currentLevelIndex = levelOrder.indexOf(student.currentLevel)
   const activeLevelIndex = levelOrder.indexOf(activeLevel)
-  const canGraduate = completion === 100 && activeLevel === student.currentLevel && currentLevelIndex < levelOrder.length - 1
+  const canGraduate = completion === 100 && activeLevel === student.currentLevel && currentLevelIndex < levelOrder.length - 1 && onGraduate
 
   const getSongById = (songId) => songs?.find(s => s.id === songId)
 

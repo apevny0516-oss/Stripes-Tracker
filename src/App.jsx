@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 import { onAuthStateChanged, signOut } from 'firebase/auth'
-import { doc, setDoc, onSnapshot, collection, getDocs, deleteDoc } from 'firebase/firestore'
+import { doc, setDoc, onSnapshot, collection, deleteDoc } from 'firebase/firestore'
 import { auth, db } from './firebase'
 import LoginScreen from './components/LoginScreen'
 import PendingApproval from './components/PendingApproval'
@@ -95,6 +95,9 @@ function App() {
   // Check if current user is admin
   const isAdmin = user?.email === ADMIN_EMAIL
 
+  // Get the student linked to the current user (for non-admin users)
+  const myStudent = !isAdmin ? students.find(s => s.linkedUserId === user?.uid) : null
+
   // Listen for auth state changes
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -119,7 +122,6 @@ function App() {
                 displayName: currentUser.displayName,
                 photoURL: currentUser.photoURL,
                 status: 'pending',
-                assignedStudents: [],
                 createdAt: new Date().toISOString()
               })
               setUserRole('pending')
@@ -154,17 +156,14 @@ function App() {
     return () => unsubscribe()
   }, [isAdmin])
 
-  // Load data from Firestore when user logs in (admin only loads main data)
+  // Load data from Firestore when user logs in
   useEffect(() => {
     if (!user || (userRole !== 'admin' && userRole !== 'approved')) return
 
-    // For admin, load from admin's data store
-    // For approved users, load from admin's shared data
     const dataDocRef = doc(db, 'appData', 'main')
     
     const unsubscribe = onSnapshot(dataDocRef, (docSnap) => {
       // Don't update state from remote if we're saving or have pending changes
-      // This prevents remote updates from overwriting unsaved local work
       if (isSaving.current || hasLocalChanges.current) return
       
       if (docSnap.exists()) {
@@ -180,9 +179,10 @@ function App() {
     return () => unsubscribe()
   }, [user, userRole, isAdmin])
 
-  // Save data to Firestore (debounced) - admin only
+  // Save data to Firestore (debounced) - admin only for most changes
+  // But also allow students to save their own progress
   useEffect(() => {
-    if (!user || loading || !dataLoaded || !isAdmin) return
+    if (!user || loading || !dataLoaded) return
     if (!hasLocalChanges.current) return
 
     const saveTimeout = setTimeout(async () => {
@@ -206,7 +206,7 @@ function App() {
     }, 1000)
 
     return () => clearTimeout(saveTimeout)
-  }, [students, checklists, songs, studentSortBy, user, loading, dataLoaded, isAdmin])
+  }, [students, checklists, songs, studentSortBy, user, loading, dataLoaded])
 
   // Helper to mark that we made a local change
   const markLocalChange = () => {
@@ -243,6 +243,15 @@ function App() {
 
   const denyUser = async (userId) => {
     try {
+      // Also unlink any student that was linked to this user
+      const linkedStudent = students.find(s => s.linkedUserId === userId)
+      if (linkedStudent) {
+        markLocalChange()
+        setStudents(prev => prev.map(s => 
+          s.id === linkedStudent.id ? { ...s, linkedUserId: null } : s
+        ))
+      }
+      
       const userDocRef = doc(db, 'appUsers', userId)
       await deleteDoc(userDocRef)
     } catch (error) {
@@ -250,52 +259,40 @@ function App() {
     }
   }
 
-  const assignStudentToUser = (studentId, userId) => {
+  // Link a user to a student (one-to-one relationship)
+  const linkUserToStudent = (studentId, userId) => {
     markLocalChange()
     setStudents(prev => prev.map(student => {
-      if (student.id !== studentId) return student
-      const currentAssigned = student.assignedTo || []
-      if (currentAssigned.includes(userId)) return student
-      return { ...student, assignedTo: [...currentAssigned, userId] }
-    }))
-  }
-
-  const unassignStudentFromUser = (studentId, userId) => {
-    markLocalChange()
-    setStudents(prev => prev.map(student => {
-      if (student.id !== studentId) return student
-      return { 
-        ...student, 
-        assignedTo: (student.assignedTo || []).filter(id => id !== userId) 
+      // If unlinking (userId is null), just clear the link on this student
+      if (student.id === studentId) {
+        return { ...student, linkedUserId: userId }
       }
+      // If linking to a new user, make sure no other student has this user
+      if (userId && student.linkedUserId === userId) {
+        return { ...student, linkedUserId: null }
+      }
+      return student
     }))
-  }
-
-  // Get students visible to current user
-  const getVisibleStudents = () => {
-    if (isAdmin) return students
-    // For approved users, only show assigned students
-    return students.filter(s => s.assignedTo?.includes(user?.uid))
   }
 
   // ========== STUDENT FUNCTIONS ==========
   
   const addStudent = (name) => {
-    if (!isAdmin) return // Only admin can add students
+    if (!isAdmin) return
     markLocalChange()
     const newStudent = {
       id: uuidv4(),
       name,
       currentLevel: 'level1',
       progress: createStudentProgress(checklists),
-      assignedTo: [],
+      linkedUserId: null,
       dateAdded: new Date().toISOString()
     }
     setStudents([...students, newStudent])
   }
 
   const deleteStudent = (studentId) => {
-    if (!isAdmin) return // Only admin can delete students
+    if (!isAdmin) return
     markLocalChange()
     setStudents(students.filter(s => s.id !== studentId))
     if (selectedStudent?.id === studentId) {
@@ -305,7 +302,7 @@ function App() {
   }
 
   const editStudentName = (studentId, newName) => {
-    if (!isAdmin) return // Only admin can edit student names
+    if (!isAdmin) return
     markLocalChange()
     setStudents(students.map(s => 
       s.id === studentId ? { ...s, name: newName } : s
@@ -315,7 +312,7 @@ function App() {
   // ========== SONG FUNCTIONS ==========
 
   const addSong = (artist, title) => {
-    if (!isAdmin) return // Only admin can add songs
+    if (!isAdmin) return
     markLocalChange()
     const newSong = {
       id: uuidv4(),
@@ -324,11 +321,11 @@ function App() {
       dateAdded: new Date().toISOString()
     }
     setSongs([...songs, newSong])
-    return newSong.id // Return the ID so we can link immediately
+    return newSong.id
   }
 
   const editSong = (songId, artist, title) => {
-    if (!isAdmin) return // Only admin can edit songs
+    if (!isAdmin) return
     markLocalChange()
     setSongs(songs.map(s => 
       s.id === songId ? { ...s, artist, title } : s
@@ -336,10 +333,9 @@ function App() {
   }
 
   const deleteSong = (songId) => {
-    if (!isAdmin) return // Only admin can delete songs
+    if (!isAdmin) return
     markLocalChange()
     setSongs(songs.filter(s => s.id !== songId))
-    // Also remove this song from any checklist items it's linked to
     setChecklists(prev => {
       const updated = { ...prev }
       LEVEL_ORDER.forEach(level => {
@@ -356,9 +352,8 @@ function App() {
     })
   }
 
-  // Link a song to a checklist item or subitem
   const linkSong = (level, itemId, subItemId, songId) => {
-    if (!isAdmin) return // Only admin can link songs
+    if (!isAdmin) return
     markLocalChange()
     setChecklists(prev => ({
       ...prev,
@@ -366,7 +361,6 @@ function App() {
         if (item.id !== itemId) return item
         
         if (subItemId) {
-          // Link to subitem
           return {
             ...item,
             subItems: (item.subItems || []).map(sub => {
@@ -377,7 +371,6 @@ function App() {
             })
           }
         } else {
-          // Link to main item
           const linkedSongs = item.linkedSongs || []
           if (linkedSongs.includes(songId)) return item
           return { ...item, linkedSongs: [...linkedSongs, songId] }
@@ -386,9 +379,8 @@ function App() {
     }))
   }
 
-  // Unlink a song from a checklist item or subitem
   const unlinkSong = (level, itemId, subItemId, songId) => {
-    if (!isAdmin) return // Only admin can unlink songs
+    if (!isAdmin) return
     markLocalChange()
     setChecklists(prev => ({
       ...prev,
@@ -413,7 +405,7 @@ function App() {
   // ========== CHECKLIST FUNCTIONS ==========
 
   const addChecklistItem = (level, itemText) => {
-    if (!isAdmin) return // Only admin can add checklist items
+    if (!isAdmin) return
     markLocalChange()
     const newItem = {
       id: uuidv4(),
@@ -440,7 +432,7 @@ function App() {
   }
 
   const addSubItem = (level, itemId, subItemText) => {
-    if (!isAdmin) return // Only admin can add sub-items
+    if (!isAdmin) return
     markLocalChange()
     const newSubItem = {
       id: uuidv4(),
@@ -470,7 +462,7 @@ function App() {
   }
 
   const deleteChecklistItem = (level, itemId) => {
-    if (!isAdmin) return // Only admin can delete checklist items
+    if (!isAdmin) return
     markLocalChange()
     const item = (checklists[level] || []).find(i => i.id === itemId)
     const subItemIds = item?.subItems?.map(s => s.id) || []
@@ -495,7 +487,7 @@ function App() {
   }
 
   const deleteSubItem = (level, itemId, subItemId) => {
-    if (!isAdmin) return // Only admin can delete sub-items
+    if (!isAdmin) return
     markLocalChange()
     setChecklists(prev => ({
       ...prev,
@@ -520,7 +512,7 @@ function App() {
   }
 
   const reorderItems = (level, fromIndex, toIndex) => {
-    if (!isAdmin) return // Only admin can reorder items
+    if (!isAdmin) return
     markLocalChange()
     setChecklists(prev => {
       const items = [...(prev[level] || [])]
@@ -534,7 +526,7 @@ function App() {
   }
 
   const reorderSubItems = (level, itemId, fromIndex, toIndex) => {
-    if (!isAdmin) return // Only admin can reorder sub-items
+    if (!isAdmin) return
     markLocalChange()
     setChecklists(prev => ({
       ...prev,
@@ -549,7 +541,7 @@ function App() {
   }
 
   const saveLessonContent = (level, itemId, subItemId, content) => {
-    if (!isAdmin) return // Only admin can save lesson content
+    if (!isAdmin) return
     markLocalChange()
     setChecklists(prev => ({
       ...prev,
@@ -557,7 +549,6 @@ function App() {
         if (item.id !== itemId) return item
         
         if (subItemId) {
-          // Save to sub-item
           return {
             ...item,
             subItems: (item.subItems || []).map(sub => {
@@ -566,7 +557,6 @@ function App() {
             })
           }
         } else {
-          // Save to main item
           return { ...item, lessonContent: content }
         }
       })
@@ -574,29 +564,24 @@ function App() {
   }
 
   const moveChecklistItem = (fromLevel, itemId, toLevel) => {
-    if (!isAdmin) return // Only admin can move items
+    if (!isAdmin) return
     markLocalChange()
     
-    // Find the item to move
     const item = (checklists[fromLevel] || []).find(i => i.id === itemId)
     if (!item) return
 
-    // Get all IDs (main item + sub-items) for progress migration
     const allIds = [item.id, ...(item.subItems || []).map(s => s.id)]
 
-    // Remove from source level and add to target level
     setChecklists(prev => ({
       ...prev,
       [fromLevel]: (prev[fromLevel] || []).filter(i => i.id !== itemId),
       [toLevel]: [...(prev[toLevel] || []), item]
     }))
 
-    // Update student progress: move progress from source to target level
     setStudents(prev => prev.map(student => {
       const fromProgress = { ...(student.progress?.[fromLevel] || {}) }
       const toProgress = { ...(student.progress?.[toLevel] || {}) }
 
-      // Move progress for all IDs
       allIds.forEach(id => {
         if (id in fromProgress) {
           toProgress[id] = fromProgress[id]
@@ -620,10 +605,10 @@ function App() {
   // ========== PROGRESS FUNCTIONS ==========
 
   const toggleProgress = (studentId, level, itemId) => {
-    // Check if user can modify this student's progress
+    // Admin can toggle any student, students can only toggle their own
     const student = students.find(s => s.id === studentId)
     if (!student) return
-    if (!isAdmin && !student.assignedTo?.includes(user?.uid)) return
+    if (!isAdmin && student.linkedUserId !== user?.uid) return
     
     markLocalChange()
     setStudents(prev => prev.map(s => {
@@ -643,10 +628,8 @@ function App() {
   }
 
   const graduateStudent = (studentId) => {
-    // Check if user can graduate this student
-    const student = students.find(s => s.id === studentId)
-    if (!student) return
-    if (!isAdmin && !student.assignedTo?.includes(user?.uid)) return
+    // Only admin can graduate students
+    if (!isAdmin) return
     
     markLocalChange()
     setStudents(prev => prev.map(s => {
@@ -722,8 +705,79 @@ function App() {
     )
   }
 
-  // Get visible students for current user
-  const visibleStudents = getVisibleStudents()
+  // For approved users who aren't linked to a student yet
+  if (!isAdmin && !myStudent) {
+    return (
+      <div className="pending-approval-screen">
+        <div className="pending-card">
+          <div className="pending-icon">🔗</div>
+          <h1>Account Not Linked</h1>
+          <p className="pending-message">
+            Your account has been approved, but hasn't been linked to a student profile yet.
+          </p>
+          <div className="pending-user-info">
+            <img src={user.photoURL} alt={user.displayName} className="pending-avatar" />
+            <div>
+              <p className="pending-name">{user.displayName}</p>
+              <p className="pending-email">{user.email}</p>
+            </div>
+          </div>
+          <p className="pending-hint">
+            Please contact your instructor to link your account to your student profile.
+          </p>
+          <div className="pending-actions">
+            <button 
+              className="curriculum-btn"
+              onClick={() => setView('curriculum')}
+            >
+              📖 View Curriculum
+            </button>
+            <button 
+              className="songs-btn"
+              onClick={() => setView('songs')}
+            >
+              🎵 View Songs
+            </button>
+          </div>
+          <button onClick={handleLogout} className="sign-out-btn" style={{ marginTop: '1rem' }}>
+            Sign Out
+          </button>
+        </div>
+        
+        {/* Show curriculum/songs even if not linked */}
+        {view === 'curriculum' && (
+          <div className="modal-overlay" onClick={() => setView('students')}>
+            <div className="modal-content wide" onClick={e => e.stopPropagation()}>
+              <button className="modal-close" onClick={() => setView('students')}>×</button>
+              <CurriculumView
+                checklists={checklists}
+                levelColors={LEVEL_COLORS}
+                levelTextColors={LEVEL_TEXT_COLORS}
+                levelNames={LEVEL_NAMES}
+                levelOrder={LEVEL_ORDER}
+              />
+            </div>
+          </div>
+        )}
+        {view === 'songs' && (
+          <div className="modal-overlay" onClick={() => setView('students')}>
+            <div className="modal-content wide" onClick={e => e.stopPropagation()}>
+              <button className="modal-close" onClick={() => setView('students')}>×</button>
+              <SongManager
+                songs={songs}
+                checklists={checklists}
+                onAddSong={null}
+                onEditSong={null}
+                onDeleteSong={null}
+                levelNames={LEVEL_NAMES}
+                isReadOnly={true}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
 
   return (
     <div className="app">
@@ -733,7 +787,7 @@ function App() {
           <h1>Progress Tracker</h1>
         </div>
         <nav className="nav-tabs">
-          {/* Admin-only tabs */}
+          {/* Admin sees all tabs */}
           {isAdmin && (
             <>
               <button 
@@ -764,23 +818,17 @@ function App() {
             </>
           )}
           
-          {/* Non-admin users can see their assigned students */}
-          {!isAdmin && visibleStudents.length > 0 && (
-            <>
-              <button 
-                className={`nav-tab ${view === 'students' ? 'active' : ''}`}
-                onClick={() => setView('students')}
-              >
-                My Students
-              </button>
-              <button 
-                className={`nav-tab ${view === 'progress' ? 'active' : ''}`}
-                onClick={() => setView('progress')}
-                disabled={!selectedStudent}
-              >
-                Progress
-              </button>
-            </>
+          {/* Students see My Progress tab */}
+          {!isAdmin && myStudent && (
+            <button 
+              className={`nav-tab ${view === 'progress' ? 'active' : ''}`}
+              onClick={() => {
+                setSelectedStudent(myStudent)
+                setView('progress')
+              }}
+            >
+              📊 My Progress
+            </button>
           )}
 
           {/* Everyone can see curriculum */}
@@ -813,6 +861,9 @@ function App() {
         </nav>
         <div className="user-section">
           {isAdmin && <span className="admin-badge">Admin</span>}
+          {!isAdmin && myStudent && (
+            <span className="student-name-badge">{myStudent.name}</span>
+          )}
           <img 
             src={user.photoURL} 
             alt={user.displayName} 
@@ -825,7 +876,9 @@ function App() {
         </div>
       </header>
 
-      {view !== 'songs' && view !== 'manage' && view !== 'curriculum' && view !== 'admin' && (
+      {/* Level tabs - show for admin on students/progress, show for students on progress */}
+      {((isAdmin && (view === 'students' || view === 'progress')) || 
+        (!isAdmin && view === 'progress')) && (
         <div className="level-tabs">
           {LEVEL_ORDER.map(level => (
             <button
@@ -844,12 +897,12 @@ function App() {
       )}
 
       <main className="main-content">
-        {view === 'students' && (
+        {view === 'students' && isAdmin && (
           <StudentList
-            students={visibleStudents}
-            onAddStudent={isAdmin ? addStudent : null}
-            onDeleteStudent={isAdmin ? deleteStudent : null}
-            onEditStudentName={isAdmin ? editStudentName : null}
+            students={students}
+            onAddStudent={addStudent}
+            onDeleteStudent={deleteStudent}
+            onEditStudentName={editStudentName}
             onSelectStudent={selectStudent}
             calculateCompletion={calculateCompletion}
             activeLevel={activeLevel}
@@ -858,7 +911,7 @@ function App() {
             levelOrder={LEVEL_ORDER}
             levelNames={LEVEL_NAMES}
             sortBy={studentSortBy}
-            onSortChange={isAdmin ? ((newSort) => { markLocalChange(); setStudentSortBy(newSort); }) : null}
+            onSortChange={(newSort) => { markLocalChange(); setStudentSortBy(newSort); }}
             isAdmin={isAdmin}
           />
         )}
@@ -870,12 +923,13 @@ function App() {
             songs={songs}
             activeLevel={activeLevel}
             onToggleProgress={toggleProgress}
-            onGraduate={graduateStudent}
+            onGraduate={isAdmin ? graduateStudent : null}
             calculateCompletion={calculateCompletion}
             levelColors={LEVEL_COLORS}
             levelTextColors={LEVEL_TEXT_COLORS}
             levelOrder={LEVEL_ORDER}
             levelNames={LEVEL_NAMES}
+            isAdmin={isAdmin}
           />
         )}
 
@@ -928,8 +982,7 @@ function App() {
             students={students}
             onApproveUser={approveUser}
             onDenyUser={denyUser}
-            onAssignStudent={assignStudentToUser}
-            onUnassignStudent={unassignStudentFromUser}
+            onLinkUserToStudent={linkUserToStudent}
             levelColors={LEVEL_COLORS}
             levelNames={LEVEL_NAMES}
           />

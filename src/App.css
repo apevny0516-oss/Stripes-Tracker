@@ -3938,6 +3938,331 @@ body {
   color: white;
 }
 
+/* Student Name Badge in Header */
+.student-name-badge {
+  padding: 0.375rem 0.875rem;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-color);
+  border-radius: 50px;
+  color: var(--text-primary);
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+/* Linking UI in Admin Panel */
+.link-hint {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  margin-bottom: 1.5rem;
+}
+
+.link-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.link-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.25rem;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  transition: all 0.2s ease;
+}
+
+.link-card:hover {
+  border-color: #667eea;
+}
+
+.link-user-section {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 200px;
+}
+
+.link-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 2px solid var(--border-color);
+}
+
+.link-user-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.link-user-name {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+}
+
+.link-user-email {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.link-arrow {
+  color: var(--text-muted);
+  font-size: 1.25rem;
+  flex-shrink: 0;
+}
+
+.link-student-section {
+  flex: 1;
+  min-width: 200px;
+}
+
+.linked-student-display {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.625rem 0.875rem;
+  background: rgba(34, 197, 94, 0.1);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  border-radius: var(--radius-sm);
+}
+
+.linked-student-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.linked-student-name {
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.linked-level {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.unlink-btn {
+  padding: 0.375rem 0.75rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.unlink-btn:hover {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: white;
+}
+
+.unlinked-student-section {
+  width: 100%;
+}
+
+.no-students-available {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  font-style: italic;
+}
+
+.student-link-select {
+  width: 100%;
+  padding: 0.625rem 0.875rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.student-link-select:hover {
+  border-color: #667eea;
+}
+
+.student-link-select:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+}
+
+/* Unlinked Students Section */
+.unlinked-students-section {
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.unlinked-students-section h4 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 0.5rem;
+}
+
+.unlinked-hint {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  margin-bottom: 1rem;
+}
+
+.unlinked-students-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.unlinked-student-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.875rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+}
+
+.unlinked-level {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+/* User linked badge */
+.user-linked-student {
+  font-size: 0.8rem;
+}
+
+.linked-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.625rem;
+  background: rgba(34, 197, 94, 0.15);
+  border-radius: 50px;
+  color: var(--success);
+  font-weight: 500;
+}
+
+.level-dot-inline {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.user-not-linked {
+  font-size: 0.8rem;
+  color: #f59e0b;
+}
+
+/* Pending Actions for unlinked users */
+.pending-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.curriculum-btn,
+.songs-btn {
+  padding: 0.75rem 1.25rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.curriculum-btn {
+  background: rgba(102, 126, 234, 0.15);
+  border-color: rgba(102, 126, 234, 0.3);
+  color: #a5b4fc;
+}
+
+.curriculum-btn:hover {
+  background: rgba(102, 126, 234, 0.25);
+  border-color: rgba(102, 126, 234, 0.5);
+}
+
+.songs-btn {
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+}
+
+.songs-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+/* Modal overlay for unlinked user viewing content */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.modal-content {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-xl);
+  max-width: 600px;
+  max-height: 90vh;
+  overflow-y: auto;
+  position: relative;
+  box-shadow: var(--shadow-lg);
+}
+
+.modal-content.wide {
+  max-width: 1000px;
+  width: 100%;
+}
+
+.modal-close {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  width: 36px;
+  height: 36px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-color);
+  border-radius: 50%;
+  color: var(--text-secondary);
+  font-size: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  z-index: 1;
+}
+
+.modal-close:hover {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: white;
+}
+
 /* Responsive for curriculum view */
 @media (max-width: 768px) {
   .curriculum-header {

@@ -5,30 +5,30 @@ function AdminPanel({
   students,
   onApproveUser, 
   onDenyUser, 
-  onAssignStudent,
-  onUnassignStudent,
+  onLinkUserToStudent,
   levelColors,
   levelNames
 }) {
-  const [selectedUser, setSelectedUser] = useState(null)
-  const [activeTab, setActiveTab] = useState('pending') // 'pending', 'approved', 'assignments'
+  const [activeTab, setActiveTab] = useState('pending') // 'pending', 'approved', 'link'
 
   const pendingUsers = users.filter(u => u.status === 'pending')
   const approvedUsers = users.filter(u => u.status === 'approved' && u.role !== 'admin')
 
-  const getAssignedStudents = (userId) => {
-    return students.filter(s => s.assignedTo?.includes(userId))
+  // Get which student a user is linked to
+  const getLinkedStudent = (userId) => {
+    return students.find(s => s.linkedUserId === userId)
   }
 
-  const getUnassignedStudents = (userId) => {
-    return students.filter(s => !s.assignedTo?.includes(userId))
+  // Get students that aren't linked to any user
+  const getUnlinkedStudents = () => {
+    return students.filter(s => !s.linkedUserId)
   }
 
   return (
     <div className="admin-panel">
       <div className="admin-header">
         <h2>👑 Admin Panel</h2>
-        <p className="admin-hint">Manage user access and student assignments</p>
+        <p className="admin-hint">Manage user access and link users to their student profiles</p>
       </div>
 
       <div className="admin-tabs">
@@ -45,10 +45,10 @@ function AdminPanel({
           Approved Users ({approvedUsers.length})
         </button>
         <button 
-          className={`admin-tab ${activeTab === 'assignments' ? 'active' : ''}`}
-          onClick={() => setActiveTab('assignments')}
+          className={`admin-tab ${activeTab === 'link' ? 'active' : ''}`}
+          onClick={() => setActiveTab('link')}
         >
-          Assignments
+          Link Users to Students
         </button>
       </div>
 
@@ -106,27 +106,28 @@ function AdminPanel({
           ) : (
             <div className="user-list">
               {approvedUsers.map(user => {
-                const assignedStudents = getAssignedStudents(user.id)
+                const linkedStudent = getLinkedStudent(user.id)
                 return (
                   <div key={user.id} className="user-card approved">
                     <img src={user.photoURL} alt={user.displayName} className="user-avatar" />
                     <div className="user-info">
                       <p className="user-name">{user.displayName}</p>
                       <p className="user-email">{user.email}</p>
-                      <p className="user-students">
-                        {assignedStudents.length} student{assignedStudents.length !== 1 ? 's' : ''} assigned
-                      </p>
+                      {linkedStudent ? (
+                        <p className="user-linked-student">
+                          <span className="linked-badge">
+                            <span 
+                              className="level-dot-inline"
+                              style={{ backgroundColor: levelColors[linkedStudent.currentLevel] }}
+                            />
+                            Linked to: {linkedStudent.name}
+                          </span>
+                        </p>
+                      ) : (
+                        <p className="user-not-linked">⚠️ Not linked to any student</p>
+                      )}
                     </div>
                     <div className="user-actions">
-                      <button 
-                        className="manage-btn"
-                        onClick={() => {
-                          setSelectedUser(user)
-                          setActiveTab('assignments')
-                        }}
-                      >
-                        Manage Students
-                      </button>
                       <button 
                         className="revoke-btn"
                         onClick={() => {
@@ -135,7 +136,7 @@ function AdminPanel({
                           }
                         }}
                       >
-                        Revoke
+                        Revoke Access
                       </button>
                     </div>
                   </div>
@@ -146,96 +147,103 @@ function AdminPanel({
         </div>
       )}
 
-      {activeTab === 'assignments' && (
+      {activeTab === 'link' && (
         <div className="admin-section">
-          <h3>Student Assignments</h3>
-          
+          <h3>Link Users to Students</h3>
+          <p className="link-hint">
+            Link each approved user to their student profile so they can track their own progress.
+          </p>
+
           {approvedUsers.length === 0 ? (
             <div className="empty-state">
               <span className="empty-icon">👥</span>
-              <p>Approve users first to assign students</p>
+              <p>Approve users first to link them to students</p>
             </div>
           ) : (
-            <>
-              <div className="user-selector">
-                <label>Select User:</label>
-                <select 
-                  value={selectedUser?.id || ''} 
-                  onChange={(e) => {
-                    const user = approvedUsers.find(u => u.id === e.target.value)
-                    setSelectedUser(user || null)
-                  }}
-                  className="user-select"
-                >
-                  <option value="">-- Select a user --</option>
-                  {approvedUsers.map(user => (
-                    <option key={user.id} value={user.id}>
-                      {user.displayName} ({user.email})
-                    </option>
-                  ))}
-                </select>
+            <div className="link-list">
+              {approvedUsers.map(user => {
+                const linkedStudent = getLinkedStudent(user.id)
+                const unlinkedStudents = getUnlinkedStudents()
+                
+                return (
+                  <div key={user.id} className="link-card">
+                    <div className="link-user-section">
+                      <img src={user.photoURL} alt={user.displayName} className="link-avatar" />
+                      <div className="link-user-info">
+                        <p className="link-user-name">{user.displayName}</p>
+                        <p className="link-user-email">{user.email}</p>
+                      </div>
+                    </div>
+                    
+                    <div className="link-arrow">→</div>
+                    
+                    <div className="link-student-section">
+                      {linkedStudent ? (
+                        <div className="linked-student-display">
+                          <div className="linked-student-info">
+                            <span 
+                              className="level-dot"
+                              style={{ backgroundColor: levelColors[linkedStudent.currentLevel] }}
+                            />
+                            <span className="linked-student-name">{linkedStudent.name}</span>
+                            <span className="linked-level">{levelNames[linkedStudent.currentLevel]}</span>
+                          </div>
+                          <button 
+                            className="unlink-btn"
+                            onClick={() => onLinkUserToStudent(linkedStudent.id, null)}
+                          >
+                            Unlink
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="unlinked-student-section">
+                          {unlinkedStudents.length === 0 ? (
+                            <p className="no-students-available">No unlinked students available</p>
+                          ) : (
+                            <select 
+                              className="student-link-select"
+                              onChange={(e) => {
+                                if (e.target.value) {
+                                  onLinkUserToStudent(e.target.value, user.id)
+                                }
+                              }}
+                              defaultValue=""
+                            >
+                              <option value="">Select a student...</option>
+                              {unlinkedStudents.map(student => (
+                                <option key={student.id} value={student.id}>
+                                  {student.name} ({levelNames[student.currentLevel]})
+                                </option>
+                              ))}
+                            </select>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {/* Show unlinked students */}
+          {getUnlinkedStudents().length > 0 && (
+            <div className="unlinked-students-section">
+              <h4>Unlinked Students ({getUnlinkedStudents().length})</h4>
+              <p className="unlinked-hint">These students don't have a user account linked yet:</p>
+              <div className="unlinked-students-list">
+                {getUnlinkedStudents().map(student => (
+                  <div key={student.id} className="unlinked-student-item">
+                    <span 
+                      className="level-dot"
+                      style={{ backgroundColor: levelColors[student.currentLevel] }}
+                    />
+                    <span>{student.name}</span>
+                    <span className="unlinked-level">{levelNames[student.currentLevel]}</span>
+                  </div>
+                ))}
               </div>
-
-              {selectedUser && (
-                <div className="assignment-panels">
-                  <div className="assignment-panel">
-                    <h4>Assigned to {selectedUser.displayName}</h4>
-                    <div className="student-assignment-list">
-                      {getAssignedStudents(selectedUser.id).length === 0 ? (
-                        <p className="no-students">No students assigned</p>
-                      ) : (
-                        getAssignedStudents(selectedUser.id).map(student => (
-                          <div key={student.id} className="assignment-student">
-                            <div className="assignment-student-info">
-                              <span 
-                                className="level-dot"
-                                style={{ backgroundColor: levelColors[student.currentLevel] }}
-                              />
-                              <span>{student.name}</span>
-                              <span className="level-label">{levelNames[student.currentLevel]}</span>
-                            </div>
-                            <button 
-                              className="unassign-btn"
-                              onClick={() => onUnassignStudent(student.id, selectedUser.id)}
-                            >
-                              Remove
-                            </button>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="assignment-panel">
-                    <h4>Available Students</h4>
-                    <div className="student-assignment-list">
-                      {getUnassignedStudents(selectedUser.id).length === 0 ? (
-                        <p className="no-students">All students are assigned</p>
-                      ) : (
-                        getUnassignedStudents(selectedUser.id).map(student => (
-                          <div key={student.id} className="assignment-student">
-                            <div className="assignment-student-info">
-                              <span 
-                                className="level-dot"
-                                style={{ backgroundColor: levelColors[student.currentLevel] }}
-                              />
-                              <span>{student.name}</span>
-                              <span className="level-label">{levelNames[student.currentLevel]}</span>
-                            </div>
-                            <button 
-                              className="assign-btn"
-                              onClick={() => onAssignStudent(student.id, selectedUser.id)}
-                            >
-                              Assign
-                            </button>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </>
+            </div>
           )}
         </div>
       )}
@@ -244,4 +252,3 @@ function AdminPanel({
 }
 
 export default AdminPanel
-
