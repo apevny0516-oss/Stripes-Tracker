@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 function LessonEditor({ 
   item, 
@@ -18,28 +18,30 @@ function LessonEditor({
   const [imageUrl, setImageUrl] = useState('')
   const [showVideoModal, setShowVideoModal] = useState(false)
   const [videoUrl, setVideoUrl] = useState('')
-  const [isDragging, setIsDragging] = useState(false)
   const editorRef = useRef(null)
   const htmlTextareaRef = useRef(null)
-  const fileInputRef = useRef(null)
   const savedSelection = useRef(null)
+  const isInitialized = useRef(false)
 
   const editingItem = subItem || item
   const isSubItem = Boolean(subItem)
   const itemId = editingItem?.id
   const initialContent = editingItem?.lessonContent || ''
 
+  // Initialize content when item changes
   useEffect(() => {
     setContent(initialContent)
     setHasChanges(false)
+    isInitialized.current = false
   }, [itemId, initialContent])
 
-  // Sync content to editor when switching modes
+  // Initialize editor content ONLY once when switching to richtext mode
   useEffect(() => {
-    if (viewMode === 'richtext' && editorRef.current) {
+    if (viewMode === 'richtext' && editorRef.current && !isInitialized.current) {
       editorRef.current.innerHTML = content
+      isInitialized.current = true
     }
-  }, [viewMode])
+  }, [viewMode, content])
 
   // Safety check
   if (!item) {
@@ -54,7 +56,8 @@ function LessonEditor({
   }
 
   const restoreSelection = () => {
-    if (savedSelection.current) {
+    if (savedSelection.current && editorRef.current) {
+      editorRef.current.focus()
       const selection = window.getSelection()
       selection.removeAllRanges()
       selection.addRange(savedSelection.current)
@@ -158,7 +161,6 @@ function LessonEditor({
   const insertLink = () => {
     if (!linkUrl) return
     restoreSelection()
-    editorRef.current?.focus()
     
     if (linkText && !window.getSelection().toString()) {
       // Insert new link with text
@@ -168,13 +170,15 @@ function LessonEditor({
       // Wrap selected text with link
       document.execCommand('createLink', false, linkUrl)
       // Make it open in new tab
-      const links = editorRef.current.querySelectorAll('a')
-      links.forEach(link => {
-        if (link.href === linkUrl || link.href.includes(linkUrl)) {
-          link.target = '_blank'
-          link.rel = 'noopener noreferrer'
-        }
-      })
+      if (editorRef.current) {
+        const links = editorRef.current.querySelectorAll('a')
+        links.forEach(link => {
+          if (link.href === linkUrl || link.href.includes(linkUrl)) {
+            link.target = '_blank'
+            link.rel = 'noopener noreferrer'
+          }
+        })
+      }
     }
     
     handleEditorInput()
@@ -188,7 +192,7 @@ function LessonEditor({
     setShowLinkModal(false)
   }
 
-  // Image handling
+  // Image handling - URL only (no file uploads to avoid huge base64)
   const openImageModal = () => {
     saveSelection()
     setImageUrl('')
@@ -198,38 +202,10 @@ function LessonEditor({
   const insertImageFromUrl = () => {
     if (!imageUrl) return
     restoreSelection()
-    editorRef.current?.focus()
     document.execCommand('insertHTML', false, `<img src="${imageUrl}" alt="Image" style="max-width: 100%;" />`)
     handleEditorInput()
     setShowImageModal(false)
     setImageUrl('')
-  }
-
-  const handleImageUpload = (file) => {
-    if (!file || !file.type.startsWith('image/')) return
-
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      const dataUrl = e.target.result
-      if (editorRef.current) {
-        editorRef.current.focus()
-        document.execCommand('insertHTML', false, `<img src="${dataUrl}" alt="Uploaded image" style="max-width: 100%;" />`)
-        handleEditorInput()
-      }
-    }
-    reader.readAsDataURL(file)
-  }
-
-  const handleFileSelect = (e) => {
-    const file = e.target.files?.[0]
-    if (file) {
-      handleImageUpload(file)
-      setShowImageModal(false)
-    }
-    // Reset input
-    if (fileInputRef.current) {
-      fileInputRef.current.value = ''
-    }
   }
 
   // Video/Embed handling
@@ -240,7 +216,6 @@ function LessonEditor({
   }
 
   const parseYouTubeUrl = (url) => {
-    // Handle various YouTube URL formats
     const patterns = [
       /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/,
       /youtube\.com\/shorts\/([a-zA-Z0-9_-]{11})/
@@ -260,7 +235,6 @@ function LessonEditor({
   const insertVideo = () => {
     if (!videoUrl) return
     restoreSelection()
-    editorRef.current?.focus()
 
     let embedHtml = ''
 
@@ -286,10 +260,8 @@ function LessonEditor({
     // If not a recognized video service, check if it's an iframe or embed code
     if (!embedHtml) {
       if (videoUrl.includes('<iframe') || videoUrl.includes('<embed')) {
-        // User pasted embed code directly
         embedHtml = `<div class="video-embed" contenteditable="false">${videoUrl}</div>`
       } else {
-        // Try as direct video URL
         embedHtml = `<div class="video-embed" contenteditable="false">
           <video controls width="560" style="max-width: 100%;">
             <source src="${videoUrl}" type="video/mp4">
@@ -305,64 +277,15 @@ function LessonEditor({
     setVideoUrl('')
   }
 
-  // Drag and drop for images
-  const handleDragEnter = (e) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setIsDragging(true)
-  }
-
-  const handleDragLeave = (e) => {
-    e.preventDefault()
-    e.stopPropagation()
-    // Only set to false if we're leaving the editor area
-    if (!editorRef.current?.contains(e.relatedTarget)) {
-      setIsDragging(false)
-    }
-  }
-
-  const handleDragOver = (e) => {
-    e.preventDefault()
-    e.stopPropagation()
-  }
-
-  const handleDrop = (e) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setIsDragging(false)
-
-    const files = e.dataTransfer?.files
-    if (files?.length > 0) {
-      const file = files[0]
-      if (file.type.startsWith('image/')) {
-        handleImageUpload(file)
-      }
-    }
-  }
-
-  // Paste handling for images
-  const handlePaste = (e) => {
-    const items = e.clipboardData?.items
-    if (!items) return
-
-    for (const item of items) {
-      if (item.type.startsWith('image/')) {
-        e.preventDefault()
-        const file = item.getAsFile()
-        if (file) {
-          handleImageUpload(file)
-        }
-        return
-      }
-    }
-    // Let other paste events through (text, etc.)
-  }
-
   // Mode switching
   const switchToMode = (mode) => {
     // Sync content before switching
     if (viewMode === 'richtext' && editorRef.current) {
       setContent(editorRef.current.innerHTML)
+    }
+    // Reset initialization flag so content gets set when switching back to richtext
+    if (mode === 'richtext') {
+      isInitialized.current = false
     }
     setViewMode(mode)
   }
@@ -374,11 +297,6 @@ function LessonEditor({
 
   const setBackgroundColor = (color) => {
     execCommand('hiliteColor', color)
-  }
-
-  // Font size
-  const setFontSize = (size) => {
-    execCommand('fontSize', size)
   }
 
   const colors = [
@@ -584,7 +502,7 @@ function LessonEditor({
                 <button className="toolbar-btn" onClick={openLinkModal} title="Insert Link" type="button">
                   🔗
                 </button>
-                <button className="toolbar-btn" onClick={openImageModal} title="Insert Image" type="button">
+                <button className="toolbar-btn" onClick={openImageModal} title="Insert Image (URL only)" type="button">
                   🖼️
                 </button>
                 <button className="toolbar-btn" onClick={openVideoModal} title="Insert Video/Embed" type="button">
@@ -599,19 +517,13 @@ function LessonEditor({
         )}
 
         {/* Editor Content Area */}
-        <div className={`lesson-editor-content ${isDragging ? 'drag-active' : ''}`}>
+        <div className="lesson-editor-content">
           {viewMode === 'richtext' && (
             <div
               ref={editorRef}
               className="rich-text-area"
               contentEditable
               onInput={handleEditorInput}
-              onDragEnter={handleDragEnter}
-              onDragLeave={handleDragLeave}
-              onDragOver={handleDragOver}
-              onDrop={handleDrop}
-              onPaste={handlePaste}
-              dangerouslySetInnerHTML={{ __html: content }}
               data-placeholder="Start writing your lesson content here..."
             />
           )}
@@ -634,13 +546,6 @@ function LessonEditor({
                 __html: content || '<p style="color: #6b7280;">No content yet.</p>' 
               }}
             />
-          )}
-
-          {isDragging && (
-            <div className="drop-overlay">
-              <div className="drop-icon">🖼️</div>
-              <p>Drop image here</p>
-            </div>
           )}
         </div>
 
@@ -707,41 +612,25 @@ function LessonEditor({
           </div>
         )}
 
-        {/* Image Modal */}
+        {/* Image Modal - URL only */}
         {showImageModal && (
           <div className="editor-modal-overlay" onClick={() => setShowImageModal(false)}>
             <div className="editor-modal" onClick={e => e.stopPropagation()}>
               <h3>Insert Image</h3>
               
-              <div className="image-upload-options">
-                <div className="upload-option">
-                  <div className="upload-box" onClick={() => fileInputRef.current?.click()}>
-                    <span className="upload-icon">📁</span>
-                    <p>Upload from Computer</p>
-                    <span className="upload-hint">Click to browse or drag & drop into editor</span>
-                  </div>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={handleFileSelect}
-                    style={{ display: 'none' }}
-                  />
-                </div>
-
-                <div className="upload-divider">
-                  <span>OR</span>
-                </div>
-
-                <div className="modal-field">
-                  <label>Image URL</label>
-                  <input
-                    type="url"
-                    value={imageUrl}
-                    onChange={(e) => setImageUrl(e.target.value)}
-                    placeholder="https://example.com/image.jpg"
-                  />
-                </div>
+              <div className="modal-field">
+                <label>Image URL</label>
+                <input
+                  type="url"
+                  value={imageUrl}
+                  onChange={(e) => setImageUrl(e.target.value)}
+                  placeholder="https://example.com/image.jpg"
+                  autoFocus
+                />
+                <p className="field-hint">
+                  Tip: Upload your image to a service like Imgur, Google Drive (set to public), 
+                  or your own hosting, then paste the URL here.
+                </p>
               </div>
 
               <div className="modal-actions">
@@ -754,7 +643,7 @@ function LessonEditor({
                   disabled={!imageUrl}
                   type="button"
                 >
-                  Insert from URL
+                  Insert Image
                 </button>
               </div>
             </div>
@@ -774,6 +663,7 @@ function LessonEditor({
                   onChange={(e) => setVideoUrl(e.target.value)}
                   placeholder="Paste a YouTube/Vimeo URL or embed code...&#10;&#10;Examples:&#10;• https://www.youtube.com/watch?v=dQw4w9WgXcQ&#10;• https://vimeo.com/123456789&#10;• <iframe src=&quot;...&quot;></iframe>"
                   rows={5}
+                  autoFocus
                 />
               </div>
 
