@@ -16,7 +16,7 @@ function StudentProgress({
   const completion = calculateCompletion(student, activeLevel)
   const currentLevelIndex = levelOrder.indexOf(student.currentLevel)
   const activeLevelIndex = levelOrder.indexOf(activeLevel)
-  const canGraduate = completion === 100 && activeLevel === student.currentLevel && currentLevelIndex < levelOrder.length - 1 && onGraduate
+  const canGraduate = completion === 100 && activeLevel === student.currentLevel && currentLevelIndex < levelOrder.length - 1 && onGraduate && isAdmin
 
   const getSongById = (songId) => songs?.find(s => s.id === songId)
 
@@ -36,6 +36,13 @@ function StudentProgress({
         })}
       </div>
     )
+  }
+
+  const handleItemClick = (itemId) => {
+    // Only allow toggling if admin and handler exists
+    if (isAdmin && onToggleProgress) {
+      onToggleProgress(student.id, activeLevel, itemId)
+    }
   }
 
   return (
@@ -77,6 +84,7 @@ function StudentProgress({
       <div className="viewing-level-header">
         <h3 style={{ color: levelColors[activeLevel] }}>
           {levelNames[activeLevel]} Checklist
+          {!isAdmin && <span className="read-only-badge">View Only</span>}
         </h3>
         <div className="completion-badge">
           <div 
@@ -96,7 +104,7 @@ function StudentProgress({
         <div className="empty-checklist">
           <span className="empty-icon">📋</span>
           <p>No checklist items for {levelNames[activeLevel]} yet.</p>
-          <p className="hint">Go to "Manage Checklists" to add items.</p>
+          {isAdmin && <p className="hint">Go to "Curriculum" to add items.</p>}
         </div>
       ) : (
         <div className="checklist">
@@ -107,8 +115,8 @@ function StudentProgress({
             return (
               <div key={item.id} className="checklist-item-group">
                 <div 
-                  className={`checklist-item ${isChecked ? 'checked' : ''}`}
-                  onClick={() => onToggleProgress(student.id, activeLevel, item.id)}
+                  className={`checklist-item ${isChecked ? 'checked' : ''} ${isAdmin ? 'clickable' : 'read-only'}`}
+                  onClick={() => handleItemClick(item.id)}
                 >
                   <div 
                     className="checkbox"
@@ -132,8 +140,8 @@ function StudentProgress({
                       return (
                         <div
                           key={subItem.id}
-                          className={`checklist-item sub-item ${subChecked ? 'checked' : ''}`}
-                          onClick={() => onToggleProgress(student.id, activeLevel, subItem.id)}
+                          className={`checklist-item sub-item ${subChecked ? 'checked' : ''} ${isAdmin ? 'clickable' : 'read-only'}`}
+                          onClick={() => handleItemClick(subItem.id)}
                         >
                           <div 
                             className="checkbox small"

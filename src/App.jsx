@@ -1,14 +1,13 @@
 import { useState, useEffect, useRef } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 import { onAuthStateChanged, signOut } from 'firebase/auth'
-import { doc, setDoc, onSnapshot, collection, deleteDoc } from 'firebase/firestore'
+import { doc, setDoc, onSnapshot, collection, deleteDoc, getDoc } from 'firebase/firestore'
 import { auth, db } from './firebase'
 import LoginScreen from './components/LoginScreen'
 import PendingApproval from './components/PendingApproval'
 import AdminPanel from './components/AdminPanel'
 import StudentList from './components/StudentList'
 import StudentProgress from './components/StudentProgress'
-import ChecklistManager from './components/ChecklistManager'
 import SongManager from './components/SongManager'
 import CurriculumView from './components/CurriculumView'
 import './App.css'
@@ -74,7 +73,7 @@ const createStudentProgress = (checklists) => {
 
 function App() {
   const [user, setUser] = useState(null)
-  const [userRole, setUserRole] = useState(null) // 'admin', 'approved', 'pending', 'denied'
+  const [userRole, setUserRole] = useState(null)
   const [loading, setLoading] = useState(true)
   const [dataLoaded, setDataLoaded] = useState(false)
   const [students, setStudents] = useState([])
@@ -84,18 +83,16 @@ function App() {
   const [view, setView] = useState('students')
   const [activeLevel, setActiveLevel] = useState('level1')
   const [studentSortBy, setStudentSortBy] = useState('name-asc')
-  
-  // For admin: list of all users
   const [allUsers, setAllUsers] = useState([])
   
-  // Track if we have pending local changes to save
+  // Export/Import state
+  const [showExportImport, setShowExportImport] = useState(false)
+  
   const hasLocalChanges = useRef(false)
   const isSaving = useRef(false)
+  const isInitialLoad = useRef(true)
 
-  // Check if current user is admin
   const isAdmin = user?.email === ADMIN_EMAIL
-
-  // Get the student linked to the current user (for non-admin users)
   const myStudent = !isAdmin ? students.find(s => s.linkedUserId === user?.uid) : null
 
   // Listen for auth state changes
@@ -104,18 +101,15 @@ function App() {
       setUser(currentUser)
       
       if (currentUser) {
-        // Check if this is the admin
         if (currentUser.email === ADMIN_EMAIL) {
           setUserRole('admin')
         } else {
-          // Check user status in Firestore
           const userDocRef = doc(db, 'appUsers', currentUser.uid)
           const unsubUser = onSnapshot(userDocRef, (docSnap) => {
             if (docSnap.exists()) {
               const userData = docSnap.data()
               setUserRole(userData.status || 'pending')
             } else {
-              // First time user - create pending record
               setDoc(userDocRef, {
                 id: currentUser.uid,
                 email: currentUser.email,
@@ -127,13 +121,13 @@ function App() {
               setUserRole('pending')
             }
           })
-          // Store unsubscribe function for cleanup
           return () => unsubUser()
         }
       } else {
         setUserRole(null)
         setDataLoaded(false)
         hasLocalChanges.current = false
+        isInitialLoad.current = true
       }
       
       setLoading(false)
@@ -156,22 +150,26 @@ function App() {
     return () => unsubscribe()
   }, [isAdmin])
 
-  // Load data from Firestore when user logs in
+  // Load data from Firestore
   useEffect(() => {
     if (!user || (userRole !== 'admin' && userRole !== 'approved')) return
 
     const dataDocRef = doc(db, 'appData', 'main')
     
     const unsubscribe = onSnapshot(dataDocRef, (docSnap) => {
-      // Don't update state from remote if we're saving or have pending changes
+      // Skip updates if we're saving or have local changes (prevents overwriting)
       if (isSaving.current || hasLocalChanges.current) return
       
       if (docSnap.exists()) {
         const data = docSnap.data()
-        if (data.students) setStudents(data.students)
-        if (data.checklists) setChecklists(data.checklists)
-        if (data.songs) setSongs(data.songs)
-        if (data.studentSortBy && isAdmin) setStudentSortBy(data.studentSortBy)
+        // Only update if this is initial load OR data is newer
+        if (isInitialLoad.current || !dataLoaded) {
+          if (data.students) setStudents(data.students)
+          if (data.checklists) setChecklists(data.checklists)
+          if (data.songs) setSongs(data.songs)
+          if (data.studentSortBy && isAdmin) setStudentSortBy(data.studentSortBy)
+          isInitialLoad.current = false
+        }
       }
       setDataLoaded(true)
     })
@@ -179,10 +177,9 @@ function App() {
     return () => unsubscribe()
   }, [user, userRole, isAdmin])
 
-  // Save data to Firestore (debounced) - admin only for most changes
-  // But also allow students to save their own progress
+  // Save data to Firestore (admin only)
   useEffect(() => {
-    if (!user || loading || !dataLoaded) return
+    if (!user || loading || !dataLoaded || !isAdmin) return
     if (!hasLocalChanges.current) return
 
     const saveTimeout = setTimeout(async () => {
@@ -206,9 +203,8 @@ function App() {
     }, 1000)
 
     return () => clearTimeout(saveTimeout)
-  }, [students, checklists, songs, studentSortBy, user, loading, dataLoaded])
+  }, [students, checklists, songs, studentSortBy, user, loading, dataLoaded, isAdmin])
 
-  // Helper to mark that we made a local change
   const markLocalChange = () => {
     hasLocalChanges.current = true
   }
@@ -225,9 +221,101 @@ function App() {
       setSelectedStudent(null)
       setView('students')
       setAllUsers([])
+      isInitialLoad.current = true
     } catch (error) {
       console.error('Error signing out:', error)
     }
+  }
+
+  // ========== EXPORT/IMPORT FUNCTIONS ==========
+
+  const exportToCSV = () => {
+    // Export Students
+    let studentsCSV = 'ID,Name,Current Level,Linked User ID,Date Added\n'
+    students.forEach(s => {
+      studentsCSV += `"${s.id}","${s.name}","${s.currentLevel}","${s.linkedUserId || ''}","${s.dateAdded}"\n`
+    })
+
+    // Export Songs
+    let songsCSV = 'ID,Artist,Title,Date Added\n'
+    songs.forEach(s => {
+      songsCSV += `"${s.id}","${s.artist || ''}","${s.title}","${s.dateAdded}"\n`
+    })
+
+    // Export Checklists (all levels)
+    let checklistsCSV = 'Level,Item ID,Item Text,Sub Item ID,Sub Item Text,Linked Songs,Lesson Content\n'
+    LEVEL_ORDER.forEach(level => {
+      const items = checklists[level] || []
+      items.forEach(item => {
+        checklistsCSV += `"${level}","${item.id}","${item.text}","","","${(item.linkedSongs || []).join(';')}","${(item.lessonContent || '').replace(/"/g, '""')}"\n`
+        if (item.subItems) {
+          item.subItems.forEach(sub => {
+            checklistsCSV += `"${level}","${item.id}","${item.text}","${sub.id}","${sub.text}","${(sub.linkedSongs || []).join(';')}","${(sub.lessonContent || '').replace(/"/g, '""')}"\n`
+          })
+        }
+      })
+    })
+
+    // Export Progress (one file per student would be complex, so we'll do JSON)
+    const fullExport = {
+      exportDate: new Date().toISOString(),
+      students,
+      songs,
+      checklists,
+      studentSortBy
+    }
+
+    // Create download links
+    const downloadCSV = (content, filename) => {
+      const blob = new Blob([content], { type: 'text/csv' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      a.click()
+      URL.revokeObjectURL(url)
+    }
+
+    const downloadJSON = (content, filename) => {
+      const blob = new Blob([JSON.stringify(content, null, 2)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      a.click()
+      URL.revokeObjectURL(url)
+    }
+
+    downloadCSV(studentsCSV, 'students.csv')
+    downloadCSV(songsCSV, 'songs.csv')
+    downloadCSV(checklistsCSV, 'curriculum.csv')
+    downloadJSON(fullExport, 'full_backup.json')
+  }
+
+  const importFromJSON = (event) => {
+    const file = event.target.files[0]
+    if (!file) return
+
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      try {
+        const data = JSON.parse(e.target.result)
+        
+        if (confirm('This will replace ALL current data with the imported data. Are you sure?')) {
+          if (data.students) setStudents(data.students)
+          if (data.songs) setSongs(data.songs)
+          if (data.checklists) setChecklists(data.checklists)
+          if (data.studentSortBy) setStudentSortBy(data.studentSortBy)
+          markLocalChange()
+          alert('Data imported successfully!')
+        }
+      } catch (error) {
+        console.error('Import error:', error)
+        alert('Error importing data. Please make sure the file is a valid JSON backup.')
+      }
+    }
+    reader.readAsText(file)
+    event.target.value = '' // Reset file input
   }
 
   // ========== ADMIN FUNCTIONS ==========
@@ -243,7 +331,6 @@ function App() {
 
   const denyUser = async (userId) => {
     try {
-      // Also unlink any student that was linked to this user
       const linkedStudent = students.find(s => s.linkedUserId === userId)
       if (linkedStudent) {
         markLocalChange()
@@ -259,15 +346,12 @@ function App() {
     }
   }
 
-  // Link a user to a student (one-to-one relationship)
   const linkUserToStudent = (studentId, userId) => {
     markLocalChange()
     setStudents(prev => prev.map(student => {
-      // If unlinking (userId is null), just clear the link on this student
       if (student.id === studentId) {
         return { ...student, linkedUserId: userId }
       }
-      // If linking to a new user, make sure no other student has this user
       if (userId && student.linkedUserId === userId) {
         return { ...student, linkedUserId: null }
       }
@@ -605,10 +689,8 @@ function App() {
   // ========== PROGRESS FUNCTIONS ==========
 
   const toggleProgress = (studentId, level, itemId) => {
-    // Admin can toggle any student, students can only toggle their own
-    const student = students.find(s => s.id === studentId)
-    if (!student) return
-    if (!isAdmin && student.linkedUserId !== user?.uid) return
+    // ONLY admin can toggle progress
+    if (!isAdmin) return
     
     markLocalChange()
     setStudents(prev => prev.map(s => {
@@ -628,7 +710,6 @@ function App() {
   }
 
   const graduateStudent = (studentId) => {
-    // Only admin can graduate students
     if (!isAdmin) return
     
     markLocalChange()
@@ -679,17 +760,17 @@ function App() {
     )
   }
 
-  // Show login screen if not authenticated
+  // Show login screen
   if (!user) {
     return <LoginScreen onLogin={setUser} />
   }
 
-  // Show pending approval screen for non-admin users awaiting approval
+  // Show pending approval screen
   if (userRole === 'pending') {
     return <PendingApproval user={user} />
   }
 
-  // Denied users see a message
+  // Denied users
   if (userRole === 'denied') {
     return (
       <div className="pending-approval-screen">
@@ -697,15 +778,13 @@ function App() {
           <div className="pending-icon">🚫</div>
           <h1>Access Denied</h1>
           <p>Your access request was denied.</p>
-          <button onClick={handleLogout} className="sign-out-btn">
-            Sign Out
-          </button>
+          <button onClick={handleLogout} className="sign-out-btn">Sign Out</button>
         </div>
       </div>
     )
   }
 
-  // For approved users who aren't linked to a student yet
+  // Approved users not linked to a student
   if (!isAdmin && !myStudent) {
     return (
       <div className="pending-approval-screen">
@@ -726,16 +805,10 @@ function App() {
             Please contact your instructor to link your account to your student profile.
           </p>
           <div className="pending-actions">
-            <button 
-              className="curriculum-btn"
-              onClick={() => setView('curriculum')}
-            >
+            <button className="curriculum-btn" onClick={() => setView('curriculum')}>
               📖 View Curriculum
             </button>
-            <button 
-              className="songs-btn"
-              onClick={() => setView('songs')}
-            >
+            <button className="songs-btn" onClick={() => setView('songs')}>
               🎵 View Songs
             </button>
           </div>
@@ -744,7 +817,6 @@ function App() {
           </button>
         </div>
         
-        {/* Show curriculum/songs even if not linked */}
         {view === 'curriculum' && (
           <div className="modal-overlay" onClick={() => setView('students')}>
             <div className="modal-content wide" onClick={e => e.stopPropagation()}>
@@ -755,6 +827,7 @@ function App() {
                 levelTextColors={LEVEL_TEXT_COLORS}
                 levelNames={LEVEL_NAMES}
                 levelOrder={LEVEL_ORDER}
+                isAdmin={false}
               />
             </div>
           </div>
@@ -766,9 +839,6 @@ function App() {
               <SongManager
                 songs={songs}
                 checklists={checklists}
-                onAddSong={null}
-                onEditSong={null}
-                onDeleteSong={null}
                 levelNames={LEVEL_NAMES}
                 isReadOnly={true}
               />
@@ -787,7 +857,6 @@ function App() {
           <h1>Progress Tracker</h1>
         </div>
         <nav className="nav-tabs">
-          {/* Admin sees all tabs */}
           {isAdmin && (
             <>
               <button 
@@ -804,12 +873,6 @@ function App() {
                 Progress
               </button>
               <button 
-                className={`nav-tab ${view === 'manage' ? 'active' : ''}`}
-                onClick={() => setView('manage')}
-              >
-                Manage Checklists
-              </button>
-              <button 
                 className={`nav-tab ${view === 'songs' ? 'active' : ''}`}
                 onClick={() => setView('songs')}
               >
@@ -818,7 +881,6 @@ function App() {
             </>
           )}
           
-          {/* Students see My Progress tab */}
           {!isAdmin && myStudent && (
             <button 
               className={`nav-tab ${view === 'progress' ? 'active' : ''}`}
@@ -831,7 +893,6 @@ function App() {
             </button>
           )}
 
-          {/* Everyone can see curriculum */}
           <button 
             className={`nav-tab curriculum-tab ${view === 'curriculum' ? 'active' : ''}`}
             onClick={() => setView('curriculum')}
@@ -839,7 +900,6 @@ function App() {
             📖 Curriculum
           </button>
 
-          {/* Songs view (read-only for non-admin) */}
           {!isAdmin && (
             <button 
               className={`nav-tab ${view === 'songs' ? 'active' : ''}`}
@@ -849,7 +909,6 @@ function App() {
             </button>
           )}
 
-          {/* Admin panel */}
           {isAdmin && (
             <button 
               className={`nav-tab admin-tab ${view === 'admin' ? 'active' : ''}`}
@@ -860,7 +919,18 @@ function App() {
           )}
         </nav>
         <div className="user-section">
-          {isAdmin && <span className="admin-badge">Admin</span>}
+          {isAdmin && (
+            <>
+              <span className="admin-badge">Admin</span>
+              <button 
+                className="export-import-btn"
+                onClick={() => setShowExportImport(!showExportImport)}
+                title="Export/Import Data"
+              >
+                💾
+              </button>
+            </>
+          )}
           {!isAdmin && myStudent && (
             <span className="student-name-badge">{myStudent.name}</span>
           )}
@@ -876,9 +946,57 @@ function App() {
         </div>
       </header>
 
-      {/* Level tabs - show for admin on students/progress, show for students on progress */}
-      {((isAdmin && (view === 'students' || view === 'progress')) || 
-        (!isAdmin && view === 'progress')) && (
+      {/* Export/Import Panel */}
+      {showExportImport && isAdmin && (
+        <div className="export-import-panel">
+          <div className="export-import-content">
+            <h3>📦 Backup & Restore</h3>
+            <div className="export-import-actions">
+              <button className="export-btn" onClick={exportToCSV}>
+                📤 Export All Data
+              </button>
+              <label className="import-btn">
+                📥 Import Backup
+                <input 
+                  type="file" 
+                  accept=".json"
+                  onChange={importFromJSON}
+                  style={{ display: 'none' }}
+                />
+              </label>
+            </div>
+            <p className="export-hint">
+              Export downloads 4 files: students.csv, songs.csv, curriculum.csv, and full_backup.json.
+              Use the JSON file to restore your data.
+            </p>
+            <button className="close-panel-btn" onClick={() => setShowExportImport(false)}>
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Level tabs for admin on students/progress views */}
+      {isAdmin && (view === 'students' || view === 'progress') && (
+        <div className="level-tabs">
+          {LEVEL_ORDER.map(level => (
+            <button
+              key={level}
+              className={`level-tab ${activeLevel === level ? 'active' : ''}`}
+              style={{
+                '--level-color': LEVEL_COLORS[level],
+                '--level-text': LEVEL_TEXT_COLORS[level]
+              }}
+              onClick={() => setActiveLevel(level)}
+            >
+              {LEVEL_NAMES[level]}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Level tabs for student progress (read-only view) */}
+      {!isAdmin && view === 'progress' && (
         <div className="level-tabs">
           {LEVEL_ORDER.map(level => (
             <button
@@ -922,7 +1040,7 @@ function App() {
             checklists={checklists}
             songs={songs}
             activeLevel={activeLevel}
-            onToggleProgress={toggleProgress}
+            onToggleProgress={isAdmin ? toggleProgress : null}
             onGraduate={isAdmin ? graduateStudent : null}
             calculateCompletion={calculateCompletion}
             levelColors={LEVEL_COLORS}
@@ -930,27 +1048,6 @@ function App() {
             levelOrder={LEVEL_ORDER}
             levelNames={LEVEL_NAMES}
             isAdmin={isAdmin}
-          />
-        )}
-
-        {view === 'manage' && isAdmin && (
-          <ChecklistManager
-            checklists={checklists}
-            onAddItem={addChecklistItem}
-            onAddSubItem={addSubItem}
-            onDeleteItem={deleteChecklistItem}
-            onDeleteSubItem={deleteSubItem}
-            onReorderItems={reorderItems}
-            onReorderSubItems={reorderSubItems}
-            onMoveItem={moveChecklistItem}
-            onSaveLessonContent={saveLessonContent}
-            onLinkSong={linkSong}
-            onUnlinkSong={unlinkSong}
-            onAddSong={addSong}
-            songs={songs}
-            levelColors={LEVEL_COLORS}
-            levelNames={LEVEL_NAMES}
-            levelOrder={LEVEL_ORDER}
           />
         )}
 
@@ -973,6 +1070,19 @@ function App() {
             levelTextColors={LEVEL_TEXT_COLORS}
             levelNames={LEVEL_NAMES}
             levelOrder={LEVEL_ORDER}
+            isAdmin={isAdmin}
+            onAddItem={isAdmin ? addChecklistItem : null}
+            onAddSubItem={isAdmin ? addSubItem : null}
+            onDeleteItem={isAdmin ? deleteChecklistItem : null}
+            onDeleteSubItem={isAdmin ? deleteSubItem : null}
+            onReorderItems={isAdmin ? reorderItems : null}
+            onReorderSubItems={isAdmin ? reorderSubItems : null}
+            onMoveItem={isAdmin ? moveChecklistItem : null}
+            onSaveLessonContent={isAdmin ? saveLessonContent : null}
+            onLinkSong={isAdmin ? linkSong : null}
+            onUnlinkSong={isAdmin ? unlinkSong : null}
+            onAddSong={isAdmin ? addSong : null}
+            songs={songs}
           />
         )}
 
