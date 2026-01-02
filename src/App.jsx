@@ -1030,23 +1030,11 @@ function App() {
             </>
           )}
           
-          {!isAdmin && myStudent && (
-            <button 
-              className={`nav-tab ${view === 'progress' ? 'active' : ''}`}
-              onClick={() => {
-                setSelectedStudent(myStudent)
-                setView('progress')
-              }}
-            >
-              📊 My Progress
-            </button>
-          )}
-
           <button 
             className={`nav-tab curriculum-tab ${view === 'curriculum' ? 'active' : ''}`}
             onClick={() => setView('curriculum')}
           >
-            📖 Curriculum
+            📖 {!isAdmin && myStudent ? 'My Progress' : 'Curriculum'}
           </button>
 
           {!isAdmin && (
@@ -1144,24 +1132,6 @@ function App() {
         </div>
       )}
 
-      {/* Level tabs for student progress (read-only view) */}
-      {!isAdmin && view === 'progress' && (
-        <div className="level-tabs">
-          {LEVEL_ORDER.map(level => (
-            <button
-              key={level}
-              className={`level-tab ${activeLevel === level ? 'active' : ''}`}
-              style={{
-                '--level-color': LEVEL_COLORS[level],
-                '--level-text': LEVEL_TEXT_COLORS[level]
-              }}
-              onClick={() => setActiveLevel(level)}
-            >
-              {LEVEL_NAMES[level]}
-            </button>
-          ))}
-        </div>
-      )}
 
       <main className="main-content">
         {view === 'students' && isAdmin && (
@@ -1233,6 +1203,8 @@ function App() {
             onUnlinkSong={isAdmin ? unlinkSong : null}
             onAddSong={isAdmin ? addSong : null}
             songs={songs}
+            studentProgress={!isAdmin && myStudent ? myStudent.progress : null}
+            studentName={!isAdmin && myStudent ? myStudent.name : null}
           />
         )}
 

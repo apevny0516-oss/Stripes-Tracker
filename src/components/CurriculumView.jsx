@@ -20,7 +20,9 @@ function CurriculumView({
   onLinkSong,
   onUnlinkSong,
   onAddSong,
-  songs
+  songs,
+  studentProgress,  // Student's progress data for showing checkmarks
+  studentName       // Student's name for display
 }) {
   const [selectedLesson, setSelectedLesson] = useState(null)
   const [expandedLevels, setExpandedLevels] = useState(
@@ -115,6 +117,12 @@ function CurriculumView({
   }
 
   const getSongById = (songId) => songs?.find(s => s.id === songId)
+
+  // Check if an item is completed in student progress
+  const isItemCompleted = (level, itemId) => {
+    if (!studentProgress || !studentProgress[level]) return false
+    return studentProgress[level][itemId] === true
+  }
 
   const handleLinkSong = (songId) => {
     if (linkingSongTo && onLinkSong) {
@@ -234,6 +242,35 @@ function CurriculumView({
         subCount + (item.subItems?.filter(sub => sub.lessonContent).length || 0), 0
       )
   }, 0)
+
+  // Calculate student progress stats
+  const calculateProgressStats = () => {
+    if (!studentProgress) return null
+    
+    let completed = 0
+    let total = 0
+    
+    levelOrder.forEach(level => {
+      const items = checklists[level] || []
+      items.forEach(item => {
+        total++
+        if (studentProgress[level]?.[item.id]) completed++
+        
+        item.subItems?.forEach(subItem => {
+          total++
+          if (studentProgress[level]?.[subItem.id]) completed++
+        })
+      })
+    })
+    
+    return {
+      completed,
+      total,
+      percentage: total > 0 ? Math.round((completed / total) * 100) : 0
+    }
+  }
+  
+  const progressStats = calculateProgressStats()
 
   const renderLinkedSongsSection = (level, itemId, subItemId = null) => {
     const linkedSongIds = getLinkedSongs(level, itemId, subItemId)
@@ -607,13 +644,20 @@ function CurriculumView({
 
   // Render read-only item for students
   const renderReadOnlyItem = (level, item, index) => {
+    const itemCompleted = isItemCompleted(level, item.id)
+    
     return (
       <li key={item.id} className="curriculum-item-group">
         <button
-          className={`curriculum-item ${item.lessonContent ? 'has-lesson' : ''}`}
+          className={`curriculum-item ${item.lessonContent ? 'has-lesson' : ''} ${itemCompleted ? 'completed' : ''}`}
           onClick={() => item.lessonContent && openLesson(level, item)}
           disabled={!item.lessonContent}
         >
+          {studentProgress && (
+            <span className={`completion-indicator ${itemCompleted ? 'checked' : ''}`}>
+              {itemCompleted ? '✓' : '○'}
+            </span>
+          )}
           <span className="item-index">{index + 1}</span>
           <span className="item-name">{item.text}</span>
           {item.lessonContent && (
@@ -623,21 +667,29 @@ function CurriculumView({
 
         {item.subItems && item.subItems.length > 0 && (
           <ul className="curriculum-sub-items">
-            {item.subItems.map((subItem, subIndex) => (
-              <li key={subItem.id}>
-                <button
-                  className={`curriculum-sub-item ${subItem.lessonContent ? 'has-lesson' : ''}`}
-                  onClick={() => subItem.lessonContent && openLesson(level, item, subItem)}
-                  disabled={!subItem.lessonContent}
-                >
-                  <span className="sub-item-index">{index + 1}.{subIndex + 1}</span>
-                  <span className="sub-item-name">{subItem.text}</span>
-                  {subItem.lessonContent && (
-                    <span className="lesson-indicator" title="View Lesson">📄</span>
-                  )}
-                </button>
-              </li>
-            ))}
+            {item.subItems.map((subItem, subIndex) => {
+              const subItemCompleted = isItemCompleted(level, subItem.id)
+              return (
+                <li key={subItem.id}>
+                  <button
+                    className={`curriculum-sub-item ${subItem.lessonContent ? 'has-lesson' : ''} ${subItemCompleted ? 'completed' : ''}`}
+                    onClick={() => subItem.lessonContent && openLesson(level, item, subItem)}
+                    disabled={!subItem.lessonContent}
+                  >
+                    {studentProgress && (
+                      <span className={`completion-indicator ${subItemCompleted ? 'checked' : ''}`}>
+                        {subItemCompleted ? '✓' : '○'}
+                      </span>
+                    )}
+                    <span className="sub-item-index">{index + 1}.{subIndex + 1}</span>
+                    <span className="sub-item-name">{subItem.text}</span>
+                    {subItem.lessonContent && (
+                      <span className="lesson-indicator" title="View Lesson">📄</span>
+                    )}
+                  </button>
+                </li>
+              )
+            })}
           </ul>
         )}
       </li>
@@ -650,21 +702,62 @@ function CurriculumView({
         <div className="curriculum-title-section">
           <span className="curriculum-icon">📖</span>
           <div>
-            <h2>Curriculum</h2>
+            <h2>{studentName ? `${studentName}'s Progress` : 'Curriculum'}</h2>
             <p className="curriculum-subtitle">
-              {isAdmin ? 'Manage curriculum content and lessons' : 'Browse lessons and learning materials'}
+              {isAdmin 
+                ? 'Manage curriculum content and lessons' 
+                : studentProgress 
+                  ? 'Track your learning progress'
+                  : 'Browse lessons and learning materials'
+              }
             </p>
           </div>
         </div>
         <div className="curriculum-stats">
-          <div className="stat-item">
-            <span className="stat-number">{totalItems}</span>
-            <span className="stat-label">Topics</span>
-          </div>
-          <div className="stat-item">
-            <span className="stat-number">{itemsWithLessons}</span>
-            <span className="stat-label">Lessons</span>
-          </div>
+          {progressStats ? (
+            <>
+              <div className="stat-item progress-stat">
+                <span className="stat-number">{progressStats.completed}/{progressStats.total}</span>
+                <span className="stat-label">Completed</span>
+              </div>
+              <div className="stat-item progress-percentage">
+                <div className="progress-ring-container">
+                  <svg className="progress-ring" width="48" height="48">
+                    <circle 
+                      className="progress-ring-bg"
+                      cx="24" 
+                      cy="24" 
+                      r="20" 
+                      fill="none" 
+                      strokeWidth="4"
+                    />
+                    <circle 
+                      className="progress-ring-fill"
+                      cx="24" 
+                      cy="24" 
+                      r="20" 
+                      fill="none" 
+                      strokeWidth="4"
+                      strokeDasharray={`${progressStats.percentage * 1.256} 125.6`}
+                      transform="rotate(-90 24 24)"
+                    />
+                  </svg>
+                  <span className="progress-ring-text">{progressStats.percentage}%</span>
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="stat-item">
+                <span className="stat-number">{totalItems}</span>
+                <span className="stat-label">Topics</span>
+              </div>
+              <div className="stat-item">
+                <span className="stat-number">{itemsWithLessons}</span>
+                <span className="stat-label">Lessons</span>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -676,6 +769,21 @@ function CurriculumView({
             items.reduce((count, item) => 
               count + (item.subItems?.filter(sub => sub.lessonContent).length || 0), 0
             )
+          
+          // Calculate level-specific progress
+          let levelCompleted = 0
+          let levelTotal = 0
+          if (studentProgress) {
+            items.forEach(item => {
+              levelTotal++
+              if (studentProgress[level]?.[item.id]) levelCompleted++
+              item.subItems?.forEach(subItem => {
+                levelTotal++
+                if (studentProgress[level]?.[subItem.id]) levelCompleted++
+              })
+            })
+          }
+          const levelProgress = levelTotal > 0 ? Math.round((levelCompleted / levelTotal) * 100) : 0
 
           return (
             <div 
@@ -693,10 +801,23 @@ function CurriculumView({
                   <h3>{levelNames[level]}</h3>
                 </div>
                 <div className="level-header-meta">
-                  <span className="level-topic-count">
-                    {items.length} topics
-                    {levelLessonCount > 0 && ` • ${levelLessonCount} lessons`}
-                  </span>
+                  {studentProgress ? (
+                    <span className="level-progress-info">
+                      <span className="level-progress-count">{levelCompleted}/{levelTotal}</span>
+                      <span className="level-progress-bar">
+                        <span 
+                          className="level-progress-fill" 
+                          style={{ width: `${levelProgress}%` }}
+                        />
+                      </span>
+                      <span className="level-progress-percent">{levelProgress}%</span>
+                    </span>
+                  ) : (
+                    <span className="level-topic-count">
+                      {items.length} topics
+                      {levelLessonCount > 0 && ` • ${levelLessonCount} lessons`}
+                    </span>
+                  )}
                   <span className={`expand-arrow ${isExpanded ? 'expanded' : ''}`}>
                     ▶
                   </span>
