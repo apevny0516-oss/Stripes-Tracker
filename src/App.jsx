@@ -163,24 +163,29 @@ function App() {
     const dataDocRef = doc(db, 'appData', 'main')
     
     const unsubscribe = onSnapshot(dataDocRef, (docSnap) => {
-      // Skip updates if we're saving or have local changes (prevents overwriting)
-      if (isSaving.current || hasLocalChanges.current) return
+      // For admin: skip updates while saving or with local changes
+      // For students: always accept updates from Firebase
+      if (isAdmin && (isSaving.current || hasLocalChanges.current)) return
       
       if (docSnap.exists()) {
         const data = docSnap.data()
-        // Only update if this is initial load OR data is newer
-        if (isInitialLoad.current || !dataLoaded) {
+        
+        // Always load data for students, or on initial load for admin
+        const shouldLoadAll = !isAdmin || isInitialLoad.current || !dataLoaded
+        
+        if (shouldLoadAll) {
           if (data.students) setStudents(data.students)
           if (data.checklists) setChecklists(data.checklists)
           if (data.songs) setSongs(data.songs)
           if (data.studentSortBy && isAdmin) setStudentSortBy(data.studentSortBy)
-          // Load Tab Vault data
-          if (data.tabLibrary) setTabLibrary(data.tabLibrary)
-          if (data.tabGenres) setTabGenres(data.tabGenres)
-          if (data.tabMetadata) setTabMetadata(data.tabMetadata)
-          if (data.tabLastSynced) setTabLastSynced(data.tabLastSynced)
           isInitialLoad.current = false
         }
+        
+        // Tab Vault data - always update for everyone (it's read-only for students)
+        if (data.tabLibrary !== undefined) setTabLibrary(data.tabLibrary)
+        if (data.tabGenres !== undefined) setTabGenres(data.tabGenres)
+        if (data.tabMetadata !== undefined) setTabMetadata(data.tabMetadata)
+        if (data.tabLastSynced !== undefined) setTabLastSynced(data.tabLastSynced)
       }
       setDataLoaded(true)
     })
