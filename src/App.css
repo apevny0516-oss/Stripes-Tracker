@@ -7532,6 +7532,17 @@ body {
   color: var(--text-muted);
 }
 
+/* Read-only genre display for students */
+.tab-genre-display {
+  display: flex;
+  align-items: center;
+}
+
+.tab-genre-display .no-genre {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
 .genre-tag-list {
   display: flex;
   flex-wrap: wrap;

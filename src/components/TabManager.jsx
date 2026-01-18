@@ -22,7 +22,7 @@ import {
   initializeGapi,
   initializeGis,
   requestAccessToken,
-  signOut,
+  signOut as googleSignOut,
   getLibraryStructure,
   CLIENT_ID,
   API_KEY,
@@ -38,11 +38,20 @@ import {
 // Check if API credentials are configured (via environment variables)
 const isConfigured = CLIENT_ID && API_KEY && CLIENT_ID.length > 0 && API_KEY.length > 0
 
-function TabManager() {
-  const [library, setLibrary] = useState(null)
+function TabManager({ 
+  isAdmin = false, 
+  tabLibrary = null, 
+  tabGenres: savedGenres = [],
+  tabMetadata: savedMetadata = {},
+  lastSyncedTime = null,
+  onSaveLibrary = null,
+  onSaveGenres = null,
+  onSaveMetadata = null
+}) {
+  // Use Firebase data for students, local state for admin during sync
+  const [localLibrary, setLocalLibrary] = useState(null)
   const [syncing, setSyncing] = useState(false)
   const [loadProgress, setLoadProgress] = useState(null)
-  const [lastSynced, setLastSynced] = useState(null)
   const [error, setError] = useState(null)
   const [authenticated, setAuthenticated] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -50,20 +59,21 @@ function TabManager() {
   const [viewMode, setViewMode] = useState('list')
   const [filterType, setFilterType] = useState('all')
   const [selectedGenre, setSelectedGenre] = useState(null)
-  const [genres, setGenres] = useState(getGenres())
-  const [tabMetadata, setTabMetadata] = useState(getAllMetadata())
+  const [genres, setGenres] = useState(savedGenres.length > 0 ? savedGenres : getGenres())
+  const [tabMetadata, setTabMetadata] = useState(Object.keys(savedMetadata).length > 0 ? savedMetadata : getAllMetadata())
   const [showGenreManager, setShowGenreManager] = useState(false)
   const searchInputRef = useRef(null)
   const artistListRef = useRef(null)
 
-  // Load from local database on mount
-  useEffect(() => {
-    loadFromCache()
-  }, [])
+  // The library to display - use Firebase data if available, else local
+  const library = tabLibrary || localLibrary
 
-  // Initialize Google APIs (for syncing capability)
+  // Format the last synced time
+  const lastSynced = lastSyncedTime ? new Date(lastSyncedTime) : null
+
+  // Initialize Google APIs (only for admin)
   useEffect(() => {
-    if (!isConfigured) return
+    if (!isAdmin || !isConfigured) return
 
     const init = async () => {
       try {
@@ -82,7 +92,7 @@ function TabManager() {
     }
 
     init()
-  }, [])
+  }, [isAdmin])
 
   // Keyboard shortcut for search
   useEffect(() => {
@@ -102,25 +112,10 @@ function TabManager() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [])
 
-  // Load library from local cache
-  const loadFromCache = () => {
-    const cached = localStorage.getItem('tabVaultLibrary')
-    const cachedTime = localStorage.getItem('tabVaultLibraryTime')
-    
-    if (cached) {
-      try {
-        setLibrary(JSON.parse(cached))
-        if (cachedTime) {
-          setLastSynced(new Date(parseInt(cachedTime)))
-        }
-      } catch (e) {
-        console.error('Failed to load cache:', e)
-      }
-    }
-  }
-
-  // Sync with Google Drive
+  // Sync with Google Drive (admin only)
   const syncWithDrive = async () => {
+    if (!isAdmin) return
+    
     if (!authenticated) {
       requestAccessToken()
       return
@@ -132,7 +127,7 @@ function TabManager() {
     
     try {
       const data = await getLibraryStructure((progress) => {
-        setLibrary(progress)
+        setLocalLibrary(progress)
         if (progress.loadingFiles) {
           setLoadProgress({
             loaded: progress.loadedCount || 0,
@@ -143,12 +138,12 @@ function TabManager() {
         }
       })
       
-      // Save to local database
-      setLibrary(data)
-      localStorage.setItem('tabVaultLibrary', JSON.stringify(data))
-      const now = Date.now()
-      localStorage.setItem('tabVaultLibraryTime', now.toString())
-      setLastSynced(new Date(now))
+      // Save to Firebase via callback
+      if (onSaveLibrary) {
+        onSaveLibrary(data)
+      }
+      
+      setLocalLibrary(data)
       
     } catch (err) {
       setError('Failed to sync with Google Drive. Please try again.')
@@ -180,19 +175,28 @@ function TabManager() {
   }
 
   const handleSignOut = () => {
-    signOut()
+    googleSignOut()
     setAuthenticated(false)
   }
 
   const handleToggleGenre = (tabId, genre) => {
     toggleTabGenre(tabId, genre)
-    setTabMetadata(getAllMetadata())
+    const newMetadata = getAllMetadata()
+    setTabMetadata(newMetadata)
+    // Save to Firebase if admin
+    if (isAdmin && onSaveMetadata) {
+      onSaveMetadata(newMetadata)
+    }
   }
 
   const handleAddGenre = (newGenre) => {
     if (newGenre.trim()) {
       const updated = addGenre(newGenre.trim())
       setGenres(updated)
+      // Save to Firebase if admin
+      if (isAdmin && onSaveGenres) {
+        onSaveGenres(updated)
+      }
     }
   }
 
@@ -202,15 +206,19 @@ function TabManager() {
     if (selectedGenre === genre) {
       setSelectedGenre(null)
     }
+    // Save to Firebase if admin
+    if (isAdmin && onSaveGenres) {
+      onSaveGenres(updated)
+    }
   }
 
   // Filter and search logic
   const filteredData = useMemo(() => {
     if (!library) return { artists: [], songs: [], totalSongs: 0 }
 
-    let artists = library.artists
+    let artists = library.artists || []
     let allSongs = artists.flatMap((a) =>
-      a.songs.map((s) => ({
+      (a.songs || []).map((s) => ({
         ...s,
         artistName: a.name,
         artistId: a.id,
@@ -220,9 +228,9 @@ function TabManager() {
 
     // Filter by file type
     if (filterType === 'pdf') {
-      allSongs = allSongs.filter((s) => s.files.pdf)
+      allSongs = allSongs.filter((s) => s.files?.pdf)
     } else if (filterType === 'gp') {
-      allSongs = allSongs.filter((s) => s.files.gp)
+      allSongs = allSongs.filter((s) => s.files?.gp)
     }
 
     // Filter by genre
@@ -235,8 +243,8 @@ function TabManager() {
       const query = searchQuery.toLowerCase()
       allSongs = allSongs.filter(
         (s) =>
-          s.name.toLowerCase().includes(query) ||
-          s.artistName.toLowerCase().includes(query)
+          s.name?.toLowerCase().includes(query) ||
+          s.artistName?.toLowerCase().includes(query)
       )
     }
 
@@ -264,8 +272,8 @@ function TabManager() {
   const artistsByLetter = useMemo(() => {
     if (!library) return {}
     const grouped = {}
-    library.artists.forEach((artist) => {
-      const firstChar = artist.name[0]?.toUpperCase() || '#'
+    ;(library.artists || []).forEach((artist) => {
+      const firstChar = artist.name?.[0]?.toUpperCase() || '#'
       const letter = /[A-Z]/.test(firstChar) ? firstChar : '#'
       if (!grouped[letter]) grouped[letter] = []
       grouped[letter].push(artist)
@@ -280,7 +288,27 @@ function TabManager() {
     }
   }
 
-  if (!isConfigured) {
+  // Student view - no library yet
+  if (!isAdmin && !library) {
+    return (
+      <div className="tab-manager">
+        <div className="tab-manager-header">
+          <div className="tab-header-top">
+            <div className="tab-title-section">
+              <Guitar className="tab-icon" />
+              <h2>Tab Vault</h2>
+            </div>
+          </div>
+        </div>
+        <div className="tab-content">
+          <StudentWaitingScreen />
+        </div>
+      </div>
+    )
+  }
+
+  // Admin view - needs setup
+  if (isAdmin && !isConfigured) {
     return <SetupScreen />
   }
 
@@ -292,44 +320,56 @@ function TabManager() {
             <Guitar className="tab-icon" />
             <h2>Tab Vault</h2>
             <span className="tab-count-badge">
-              {library ? library.artists.reduce((sum, a) => sum + a.songs.length, 0) : 0} tabs
+              {library ? (library.artists || []).reduce((sum, a) => sum + (a.songs?.length || 0), 0) : 0} tabs
             </span>
           </div>
 
           <div className="tab-actions">
-            {authenticated && (
-              <button
-                className="tab-icon-btn"
-                onClick={() => setShowGenreManager(true)}
-                title="Manage genres"
-              >
-                <Settings size={18} />
-              </button>
-            )}
-            {authenticated ? (
+            {/* Admin-only controls */}
+            {isAdmin && (
               <>
-                <div className="sync-info">
-                  <span className="last-synced-text">
-                    {lastSynced ? `Synced ${formatLastSynced(lastSynced)}` : 'Not synced'}
-                  </span>
+                {authenticated && (
                   <button
-                    className="sync-btn"
-                    onClick={syncWithDrive}
-                    disabled={syncing}
+                    className="tab-icon-btn"
+                    onClick={() => setShowGenreManager(true)}
+                    title="Manage genres"
                   >
-                    <RefreshCw size={16} className={syncing ? 'spinning' : ''} />
-                    <span>{syncing ? 'Syncing...' : 'Sync'}</span>
+                    <Settings size={18} />
                   </button>
-                </div>
-                <button className="tab-icon-btn" onClick={handleSignOut} title="Sign out">
-                  <LogOut size={18} />
-                </button>
+                )}
+                {authenticated ? (
+                  <>
+                    <div className="sync-info">
+                      <span className="last-synced-text">
+                        {lastSynced ? `Synced ${formatLastSynced(lastSynced)}` : 'Not synced'}
+                      </span>
+                      <button
+                        className="sync-btn"
+                        onClick={syncWithDrive}
+                        disabled={syncing}
+                      >
+                        <RefreshCw size={16} className={syncing ? 'spinning' : ''} />
+                        <span>{syncing ? 'Syncing...' : 'Sync'}</span>
+                      </button>
+                    </div>
+                    <button className="tab-icon-btn" onClick={handleSignOut} title="Sign out of Google">
+                      <LogOut size={18} />
+                    </button>
+                  </>
+                ) : (
+                  <button className="connect-drive-btn" onClick={handleSignIn}>
+                    <LogIn size={18} />
+                    <span>Connect Google Drive</span>
+                  </button>
+                )}
               </>
-            ) : (
-              <button className="connect-drive-btn" onClick={handleSignIn}>
-                <LogIn size={18} />
-                <span>Connect Google Drive</span>
-              </button>
+            )}
+            
+            {/* Student view - just show last synced */}
+            {!isAdmin && lastSynced && (
+              <span className="last-synced-text">
+                Library updated {formatLastSynced(lastSynced)}
+              </span>
             )}
           </div>
         </div>
@@ -409,13 +449,13 @@ function TabManager() {
 
       {/* Main Content */}
       <div className="tab-content">
-        {!authenticated && !library ? (
+        {isAdmin && !authenticated && !library ? (
           <WelcomeScreen onSignIn={handleSignIn} />
-        ) : syncing && !library ? (
+        ) : isAdmin && syncing && !library ? (
           <LoadingScreen />
-        ) : error && !library ? (
+        ) : isAdmin && error && !library ? (
           <ErrorScreen error={error} onRetry={syncWithDrive} />
-        ) : !library ? (
+        ) : isAdmin && !library ? (
           <FirstSyncScreen onSync={syncWithDrive} syncing={syncing} authenticated={authenticated} onSignIn={handleSignIn} />
         ) : library ? (
           <div className="tab-layout">
@@ -423,7 +463,7 @@ function TabManager() {
             <aside className="tab-sidebar">
               <div className="tab-sidebar-header">
                 <h3>Artists</h3>
-                <span className="artist-badge">{library.artists.length}</span>
+                <span className="artist-badge">{(library.artists || []).length}</span>
               </div>
 
               <div className="alphabet-nav">
@@ -447,7 +487,7 @@ function TabManager() {
                   <Music size={16} />
                   <span>All Artists</span>
                   <span className="artist-song-count">
-                    {library.artists.reduce((sum, a) => sum + a.songs.length, 0)}
+                    {(library.artists || []).reduce((sum, a) => sum + (a.songs?.length || 0), 0)}
                   </span>
                 </button>
 
@@ -464,7 +504,7 @@ function TabManager() {
                         >
                           <User size={16} />
                           <span className="artist-name-text">{artist.name}</span>
-                          <span className="artist-song-count">{artist.songs.length}</span>
+                          <span className="artist-song-count">{artist.songs?.length || 0}</span>
                         </button>
                       ))}
                     </div>
@@ -477,7 +517,7 @@ function TabManager() {
               <div className="tab-main-header">
                 <h3 className="current-view-title">
                   {selectedArtist
-                    ? library.artists.find((a) => a.id === selectedArtist)?.name
+                    ? (library.artists || []).find((a) => a.id === selectedArtist)?.name
                     : 'All Songs'}
                 </h3>
                 <span className="result-count">
@@ -516,7 +556,8 @@ function TabManager() {
                         song={song}
                         index={index}
                         genres={genres}
-                        onToggleGenre={handleToggleGenre}
+                        onToggleGenre={isAdmin ? handleToggleGenre : null}
+                        isAdmin={isAdmin}
                       />
                     ))}
                   </div>
@@ -528,7 +569,8 @@ function TabManager() {
                         song={song}
                         index={index}
                         genres={genres}
-                        onToggleGenre={handleToggleGenre}
+                        onToggleGenre={isAdmin ? handleToggleGenre : null}
+                        isAdmin={isAdmin}
                       />
                     ))}
                   </div>
@@ -539,8 +581,8 @@ function TabManager() {
         ) : null}
       </div>
 
-      {/* Genre Manager Modal */}
-      {showGenreManager && (
+      {/* Genre Manager Modal (admin only) */}
+      {isAdmin && showGenreManager && (
         <GenreManager
           genres={genres}
           onAddGenre={handleAddGenre}
@@ -607,7 +649,7 @@ function GenreFilter({ genres, selectedGenre, onSelectGenre }) {
 }
 
 // Genre Picker for Tabs
-function GenrePicker({ tabId, tabGenres, allGenres, onToggleGenre }) {
+function GenrePicker({ tabId, tabGenres, allGenres, onToggleGenre, isAdmin }) {
   const [isOpen, setIsOpen] = useState(false)
   const pickerRef = useRef(null)
 
@@ -620,6 +662,28 @@ function GenrePicker({ tabId, tabGenres, allGenres, onToggleGenre }) {
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
+
+  // Read-only for students
+  if (!isAdmin) {
+    return (
+      <div className="tab-genre-display">
+        {tabGenres.length > 0 ? (
+          <div className="genre-tag-list">
+            {tabGenres.slice(0, 2).map((g) => (
+              <span key={g} className="genre-mini-tag">
+                {g}
+              </span>
+            ))}
+            {tabGenres.length > 2 && (
+              <span className="genre-mini-tag more">+{tabGenres.length - 2}</span>
+            )}
+          </div>
+        ) : (
+          <span className="no-genre">—</span>
+        )}
+      </div>
+    )
+  }
 
   return (
     <div className="tab-genre-picker" ref={pickerRef}>
@@ -717,7 +781,7 @@ function GenreManager({ genres, onAddGenre, onRemoveGenre, onClose }) {
 }
 
 // Tab Row Component (List View)
-function TabRow({ song, index, genres, onToggleGenre }) {
+function TabRow({ song, index, genres, onToggleGenre, isAdmin }) {
   return (
     <div
       className="tab-row"
@@ -736,6 +800,7 @@ function TabRow({ song, index, genres, onToggleGenre }) {
           tabGenres={song.genres}
           allGenres={genres}
           onToggleGenre={onToggleGenre}
+          isAdmin={isAdmin}
         />
       </div>
       <div className="col-files">
@@ -746,7 +811,7 @@ function TabRow({ song, index, genres, onToggleGenre }) {
           </span>
         ) : (
           <>
-            {song.files.pdf && (
+            {song.files?.pdf && (
               <a
                 href={song.files.pdf.link}
                 target="_blank"
@@ -758,7 +823,7 @@ function TabRow({ song, index, genres, onToggleGenre }) {
                 <span>PDF</span>
               </a>
             )}
-            {song.files.gp && (
+            {song.files?.gp && (
               <a
                 href={song.files.gp.link}
                 target="_blank"
@@ -770,7 +835,7 @@ function TabRow({ song, index, genres, onToggleGenre }) {
                 <span>GP</span>
               </a>
             )}
-            {!song.files.pdf && !song.files.gp && (
+            {!song.files?.pdf && !song.files?.gp && (
               <span className="file-badge empty">No files</span>
             )}
           </>
@@ -781,7 +846,7 @@ function TabRow({ song, index, genres, onToggleGenre }) {
 }
 
 // Tab Card Component (Grid View)
-function TabCard({ song, index, genres, onToggleGenre }) {
+function TabCard({ song, index, genres, onToggleGenre, isAdmin }) {
   return (
     <div
       className={`tab-card ${song.loading ? 'loading' : ''}`}
@@ -796,7 +861,7 @@ function TabCard({ song, index, genres, onToggleGenre }) {
             <RefreshCw size={18} className="spinning" />
           ) : (
             <>
-              {song.files.pdf && (
+              {song.files?.pdf && (
                 <a
                   href={song.files.pdf.link}
                   target="_blank"
@@ -807,7 +872,7 @@ function TabCard({ song, index, genres, onToggleGenre }) {
                   <FileText size={18} />
                 </a>
               )}
-              {song.files.gp && (
+              {song.files?.gp && (
                 <a
                   href={song.files.gp.link}
                   target="_blank"
@@ -832,6 +897,7 @@ function TabCard({ song, index, genres, onToggleGenre }) {
           tabGenres={song.genres}
           allGenres={genres}
           onToggleGenre={onToggleGenre}
+          isAdmin={isAdmin}
         />
       </div>
       <div className="tab-card-footer">
@@ -839,8 +905,8 @@ function TabCard({ song, index, genres, onToggleGenre }) {
           <span className="tab-card-badge loading">Loading...</span>
         ) : (
           <>
-            {song.files.pdf && <span className="tab-card-badge pdf">PDF</span>}
-            {song.files.gp && <span className="tab-card-badge gp">GP</span>}
+            {song.files?.pdf && <span className="tab-card-badge pdf">PDF</span>}
+            {song.files?.gp && <span className="tab-card-badge gp">GP</span>}
           </>
         )}
       </div>
@@ -848,7 +914,7 @@ function TabCard({ song, index, genres, onToggleGenre }) {
   )
 }
 
-// Welcome Screen
+// Welcome Screen (Admin only)
 function WelcomeScreen({ onSignIn }) {
   return (
     <div className="tab-welcome">
@@ -858,16 +924,17 @@ function WelcomeScreen({ onSignIn }) {
         </div>
         <h2>Welcome to Tab Vault</h2>
         <p>
-          Connect your Google Drive to access your guitar tab collection.
+          Connect your Google Drive to sync your guitar tab collection.
           <br />
-          All your tabs, organized and easily accessible.
+          Your tabs will be available to all students.
         </p>
         <button className="connect-drive-btn large" onClick={onSignIn}>
           <LogIn size={20} />
           <span>Connect Google Drive</span>
         </button>
         <p className="tab-welcome-note">
-          Your data stays private. We only read your tab files.
+          Only you (the admin) can sync with Google Drive.
+          Students will see the tabs you sync.
         </p>
       </div>
 
@@ -887,6 +954,28 @@ function WelcomeScreen({ onSignIn }) {
           <h4>Guitar Pro</h4>
           <p>Quick links to your GP files</p>
         </div>
+      </div>
+    </div>
+  )
+}
+
+// Student Waiting Screen
+function StudentWaitingScreen() {
+  return (
+    <div className="tab-welcome">
+      <div className="tab-welcome-content">
+        <div className="tab-welcome-icon">
+          <Guitar size={64} />
+        </div>
+        <h2>Tab Vault</h2>
+        <p>
+          The tab library hasn't been set up yet.
+          <br />
+          Please check back later or contact your instructor.
+        </p>
+        <p className="tab-welcome-note">
+          Once your instructor syncs their Google Drive, you'll be able to browse all available tabs here.
+        </p>
       </div>
     </div>
   )
@@ -916,8 +1005,8 @@ function FirstSyncScreen({ onSync, syncing, authenticated, onSignIn }) {
         <h2>Build Your Library</h2>
         <p>
           {authenticated 
-            ? "Click 'Sync' to scan your Google Drive and build your local tab database. This only needs to be done once."
-            : "Connect your Google Drive to scan your tabs and build a local database."}
+            ? "Click 'Sync' to scan your Google Drive and build the tab database. Students will be able to see these tabs."
+            : "Connect your Google Drive to scan your tabs and build the library."}
         </p>
         {authenticated ? (
           <button className="sync-btn large" onClick={onSync} disabled={syncing}>
@@ -931,15 +1020,15 @@ function FirstSyncScreen({ onSync, syncing, authenticated, onSignIn }) {
           </button>
         )}
         <p className="tab-welcome-note">
-          Your library is stored locally. Sync again anytime to pick up new tabs.
+          Sync again anytime to pick up new tabs from your Drive.
         </p>
       </div>
 
       <div className="tab-features">
         <div className="tab-feature">
           <RefreshCw size={24} />
-          <h4>Local Database</h4>
-          <p>Your library is cached locally for instant access</p>
+          <h4>Shared Library</h4>
+          <p>Tabs are saved and shared with all students</p>
         </div>
         <div className="tab-feature">
           <Tag size={24} />
@@ -949,7 +1038,7 @@ function FirstSyncScreen({ onSync, syncing, authenticated, onSignIn }) {
         <div className="tab-feature">
           <Search size={24} />
           <h4>Fast Search</h4>
-          <p>Find songs instantly after syncing</p>
+          <p>Students can search and filter tabs</p>
         </div>
       </div>
     </div>

@@ -85,6 +85,12 @@ function App() {
   const [studentSortBy, setStudentSortBy] = useState('name-asc')
   const [allUsers, setAllUsers] = useState([])
   
+  // Tab Vault state
+  const [tabLibrary, setTabLibrary] = useState(null)
+  const [tabGenres, setTabGenres] = useState([])
+  const [tabMetadata, setTabMetadata] = useState({})
+  const [tabLastSynced, setTabLastSynced] = useState(null)
+  
   // Export/Import state
   const [showExportImport, setShowExportImport] = useState(false)
   
@@ -168,6 +174,11 @@ function App() {
           if (data.checklists) setChecklists(data.checklists)
           if (data.songs) setSongs(data.songs)
           if (data.studentSortBy && isAdmin) setStudentSortBy(data.studentSortBy)
+          // Load Tab Vault data
+          if (data.tabLibrary) setTabLibrary(data.tabLibrary)
+          if (data.tabGenres) setTabGenres(data.tabGenres)
+          if (data.tabMetadata) setTabMetadata(data.tabMetadata)
+          if (data.tabLastSynced) setTabLastSynced(data.tabLastSynced)
           isInitialLoad.current = false
         }
       }
@@ -192,6 +203,10 @@ function App() {
           checklists,
           songs,
           studentSortBy,
+          tabLibrary,
+          tabGenres,
+          tabMetadata,
+          tabLastSynced,
           lastUpdated: new Date().toISOString()
         }, { merge: true })
         
@@ -203,10 +218,31 @@ function App() {
     }, 1000)
 
     return () => clearTimeout(saveTimeout)
-  }, [students, checklists, songs, studentSortBy, user, loading, dataLoaded, isAdmin])
+  }, [students, checklists, songs, studentSortBy, tabLibrary, tabGenres, tabMetadata, tabLastSynced, user, loading, dataLoaded, isAdmin])
 
   const markLocalChange = () => {
     hasLocalChanges.current = true
+  }
+
+  // ========== TAB VAULT FUNCTIONS ==========
+  
+  const saveTabLibrary = (library) => {
+    if (!isAdmin) return
+    markLocalChange()
+    setTabLibrary(library)
+    setTabLastSynced(new Date().toISOString())
+  }
+
+  const saveTabGenres = (genres) => {
+    if (!isAdmin) return
+    markLocalChange()
+    setTabGenres(genres)
+  }
+
+  const saveTabMetadata = (metadata) => {
+    if (!isAdmin) return
+    markLocalChange()
+    setTabMetadata(metadata)
   }
 
   // Handle logout
@@ -985,7 +1021,13 @@ function App() {
           <div className="modal-overlay" onClick={() => setView('students')}>
             <div className="modal-content wide" onClick={e => e.stopPropagation()}>
               <button className="modal-close" onClick={() => setView('students')}>×</button>
-              <TabManager />
+              <TabManager
+                isAdmin={false}
+                tabLibrary={tabLibrary}
+                tabGenres={tabGenres}
+                tabMetadata={tabMetadata}
+                lastSyncedTime={tabLastSynced}
+              />
             </div>
           </div>
         )}
@@ -1166,7 +1208,16 @@ function App() {
         )}
 
         {view === 'tabs' && (
-          <TabManager />
+          <TabManager
+            isAdmin={isAdmin}
+            tabLibrary={tabLibrary}
+            tabGenres={tabGenres}
+            tabMetadata={tabMetadata}
+            lastSyncedTime={tabLastSynced}
+            onSaveLibrary={isAdmin ? saveTabLibrary : null}
+            onSaveGenres={isAdmin ? saveTabGenres : null}
+            onSaveMetadata={isAdmin ? saveTabMetadata : null}
+          />
         )}
 
         {view === 'curriculum' && (
