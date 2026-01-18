@@ -35,8 +35,8 @@ import {
   toggleTabGenre,
 } from '../services/tabMetadata'
 
-// Check if API credentials are configured
-const isConfigured = CLIENT_ID !== 'YOUR_CLIENT_ID' && API_KEY !== 'YOUR_API_KEY'
+// Check if API credentials are configured (via environment variables)
+const isConfigured = CLIENT_ID && API_KEY && CLIENT_ID.length > 0 && API_KEY.length > 0
 
 function TabManager() {
   const [library, setLibrary] = useState(null)

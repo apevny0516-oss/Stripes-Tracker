@@ -1,12 +1,12 @@
 // Google Drive API configuration
-// You'll need to create credentials at https://console.cloud.google.com/
-const CLIENT_ID = '248072390735-o9f123fnhp6u5cilvvrtbinejv5mmner.apps.googleusercontent.com';
-const API_KEY = 'AIzaSyBTpumOlpwDe63DPRElZkH3RKfmsXG11M0';
+// Set these in your .env file (see .env.example)
+const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
+const API_KEY = import.meta.env.VITE_GOOGLE_API_KEY || '';
 const DISCOVERY_DOC = 'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest';
 const SCOPES = 'https://www.googleapis.com/auth/drive.readonly';
 
 // Your root folder ID from the URL
-const ROOT_FOLDER_ID = '1faim3IFST9upzuBMQjVVMFjHRBNt7pIB';
+const ROOT_FOLDER_ID = import.meta.env.VITE_GOOGLE_DRIVE_FOLDER_ID || '';
 
 let tokenClient;
 let gapiInited = false;
