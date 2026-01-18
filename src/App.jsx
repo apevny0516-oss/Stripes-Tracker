@@ -182,7 +182,13 @@ function App() {
         }
         
         // Tab Vault data - always update for everyone (it's read-only for students)
-        if (data.tabLibrary !== undefined) setTabLibrary(data.tabLibrary)
+        if (data.tabLibrary !== undefined) {
+          console.log('Loading Tab Vault from Firebase:', {
+            artistCount: data.tabLibrary?.artists?.length || 0,
+            tabCount: data.tabLibrary?.artists?.reduce((sum, a) => sum + (a.songs?.length || 0), 0) || 0
+          })
+          setTabLibrary(data.tabLibrary)
+        }
         if (data.tabGenres !== undefined) setTabGenres(data.tabGenres)
         if (data.tabMetadata !== undefined) setTabMetadata(data.tabMetadata)
         if (data.tabLastSynced !== undefined) setTabLastSynced(data.tabLastSynced)
@@ -203,7 +209,7 @@ function App() {
         isSaving.current = true
         const dataDocRef = doc(db, 'appData', 'main')
         
-        await setDoc(dataDocRef, {
+        const dataToSave = {
           students,
           checklists,
           songs,
@@ -213,11 +219,20 @@ function App() {
           tabMetadata,
           tabLastSynced,
           lastUpdated: new Date().toISOString()
-        }, { merge: true })
+        }
         
+        console.log('Saving to Firebase...', {
+          hasTabLibrary: !!tabLibrary,
+          tabCount: tabLibrary?.artists?.reduce((sum, a) => sum + (a.songs?.length || 0), 0) || 0
+        })
+        
+        await setDoc(dataDocRef, dataToSave, { merge: true })
+        
+        console.log('Saved successfully!')
         hasLocalChanges.current = false
       } catch (error) {
         console.error('Error saving data:', error)
+        alert('Failed to save Tab Vault to database. Error: ' + error.message)
       }
       isSaving.current = false
     }, 1000)
