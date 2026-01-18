@@ -8,7 +8,7 @@ import PendingApproval from './components/PendingApproval'
 import AdminPanel from './components/AdminPanel'
 import StudentList from './components/StudentList'
 import StudentProgress from './components/StudentProgress'
-import SongManager from './components/SongManager'
+import TabManager from './components/TabManager'
 import CurriculumView from './components/CurriculumView'
 import './App.css'
 
@@ -957,8 +957,8 @@ function App() {
             <button className="curriculum-btn" onClick={() => setView('curriculum')}>
               📖 View Curriculum
             </button>
-            <button className="songs-btn" onClick={() => setView('songs')}>
-              🎵 View Songs
+            <button className="songs-btn" onClick={() => setView('tabs')}>
+              🎸 View Tab Vault
             </button>
           </div>
           <button onClick={handleLogout} className="sign-out-btn" style={{ marginTop: '1rem' }}>
@@ -981,16 +981,11 @@ function App() {
             </div>
           </div>
         )}
-        {view === 'songs' && (
+        {view === 'tabs' && (
           <div className="modal-overlay" onClick={() => setView('students')}>
             <div className="modal-content wide" onClick={e => e.stopPropagation()}>
               <button className="modal-close" onClick={() => setView('students')}>×</button>
-              <SongManager
-                songs={songs}
-                checklists={checklists}
-                levelNames={LEVEL_NAMES}
-                isReadOnly={true}
-              />
+              <TabManager />
             </div>
           </div>
         )}
@@ -1022,10 +1017,10 @@ function App() {
                 Progress
               </button>
               <button 
-                className={`nav-tab ${view === 'songs' ? 'active' : ''}`}
-                onClick={() => setView('songs')}
+                className={`nav-tab ${view === 'tabs' ? 'active' : ''}`}
+                onClick={() => setView('tabs')}
               >
-                🎵 Songs
+                🎸 Tab Vault
               </button>
             </>
           )}
@@ -1039,10 +1034,10 @@ function App() {
 
           {!isAdmin && (
             <button 
-              className={`nav-tab ${view === 'songs' ? 'active' : ''}`}
-              onClick={() => setView('songs')}
+              className={`nav-tab ${view === 'tabs' ? 'active' : ''}`}
+              onClick={() => setView('tabs')}
             >
-              🎵 Songs
+              🎸 Tab Vault
             </button>
           )}
 
@@ -1170,17 +1165,8 @@ function App() {
           />
         )}
 
-        {view === 'songs' && (
-          <SongManager
-            songs={songs}
-            checklists={checklists}
-            onAddSong={isAdmin ? addSong : null}
-            onEditSong={isAdmin ? editSong : null}
-            onDeleteSong={isAdmin ? deleteSong : null}
-            onImportSongs={isAdmin ? importSongsFromCSV : null}
-            levelNames={LEVEL_NAMES}
-            isReadOnly={!isAdmin}
-          />
+        {view === 'tabs' && (
+          <TabManager />
         )}
 
         {view === 'curriculum' && (
